@@ -608,7 +608,11 @@ func Avg(first Decimal, rest ...Decimal) Decimal {
 	}
 }
 
-// func RescalePair(d1 Decimal, d2 Decimal) (Decimal, Decimal) {}
+func RescalePair(d1 Decimal, d2 Decimal) (Decimal, Decimal) {
+	d3, d4 := decimal.RescalePair(d1.decimal, d2.decimal)
+	return Decimal{name: d1.name, decimal: d3}, Decimal{name: d2.name, decimal: d4}
+}
+
 // func (d *NullDecimal) Scan(value interface{}}) error {}
 // func (d NullDecimal) Value() (driver.Value, error) {}
 // func (d *NullDecimal) UnmarshalJSON(decimalBytes []byte) error {}

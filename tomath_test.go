@@ -252,3 +252,15 @@ func TestAvg(t *testing.T) {
 	assert.Equal(t, `avg(var1, var2, var3) = ?`, vars)
 	assert.Equal(t, `avg(1, 2, 100) = 34.3333333333333333`, formula)
 }
+
+func TestRescalePair(t *testing.T) {
+	d1, d2 := RescalePair(New("var1", 111111, -5), New("var2", 2111, -3))
+
+	vars, formula := d1.Math()
+	assert.Equal(t, `var1 = var1`, vars)
+	assert.Equal(t, `1.11111 = 1.11111`, formula)
+
+	vars, formula = d2.Math()
+	assert.Equal(t, `var2 = var2`, vars)
+	assert.Equal(t, `2.111 = 2.111`, formula)
+}
