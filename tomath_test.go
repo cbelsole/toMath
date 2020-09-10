@@ -220,3 +220,35 @@ func TestComplexExample(t *testing.T) {
 	assert.Equal(t, `((round(1)(var1) + var2 + var2) / var3) * var4 = var5`, vars)
 	assert.Equal(t, `((round(1)(1.1) + 1 + 1) / 2) * 2 = 3.1`, formula)
 }
+
+func TestMin(t *testing.T) {
+	d := Min(NewFromFloat("var1", 1), NewFromFloat("var2", 2), NewFromFloat("var3", 100))
+
+	vars, formula := d.Math()
+	assert.Equal(t, `min(var1, var2, var3) = ?`, vars)
+	assert.Equal(t, `min(1, 2, 100) = 1`, formula)
+}
+
+func TestMax(t *testing.T) {
+	d := Max(NewFromFloat("var1", 1), NewFromFloat("var2", 2), NewFromFloat("var3", 100))
+
+	vars, formula := d.Math()
+	assert.Equal(t, `max(var1, var2, var3) = ?`, vars)
+	assert.Equal(t, `max(1, 2, 100) = 100`, formula)
+}
+
+func TestSum(t *testing.T) {
+	d := Sum(NewFromFloat("var1", 1), NewFromFloat("var2", 2), NewFromFloat("var3", 100))
+
+	vars, formula := d.Math()
+	assert.Equal(t, `sum(var1, var2, var3) = ?`, vars)
+	assert.Equal(t, `sum(1, 2, 100) = 103`, formula)
+}
+
+func TestAvg(t *testing.T) {
+	d := Avg(NewFromFloat("var1", 1), NewFromFloat("var2", 2), NewFromFloat("var3", 100))
+
+	vars, formula := d.Math()
+	assert.Equal(t, `avg(var1, var2, var3) = ?`, vars)
+	assert.Equal(t, `avg(1, 2, 100) = 34.3333333333333333`, formula)
+}

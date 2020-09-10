@@ -27,6 +27,10 @@ const (
 	floor
 	ceil
 	truncate
+	min
+	max
+	sum
+	avg
 )
 
 type (
@@ -169,6 +173,50 @@ func (d Decimal) math() (string, string) {
 						insertables = []interface{}{"ceil(", c.operation.operands[0], ")"}
 					case truncate:
 						insertables = []interface{}{"truncate(", strconv.Itoa(c.operation.operands[0].precision), ")(", c.operation.operands[0], ")"}
+					case min:
+						insertables = make([]interface{}, (len(c.operation.operands)*2)+1)
+						insertables[0] = "min("
+
+						for i, operand := range c.operation.operands {
+							insertables[(i*2)+1] = operand
+							if i != len(c.operation.operands)-1 {
+								insertables[(i*2)+2] = ", "
+							}
+						}
+						insertables[(len(c.operation.operands) * 2)] = ")"
+					case max:
+						insertables = make([]interface{}, (len(c.operation.operands)*2)+1)
+						insertables[0] = "max("
+
+						for i, operand := range c.operation.operands {
+							insertables[(i*2)+1] = operand
+							if i != len(c.operation.operands)-1 {
+								insertables[(i*2)+2] = ", "
+							}
+						}
+						insertables[(len(c.operation.operands) * 2)] = ")"
+					case sum:
+						insertables = make([]interface{}, (len(c.operation.operands)*2)+1)
+						insertables[0] = "sum("
+
+						for i, operand := range c.operation.operands {
+							insertables[(i*2)+1] = operand
+							if i != len(c.operation.operands)-1 {
+								insertables[(i*2)+2] = ", "
+							}
+						}
+						insertables[(len(c.operation.operands) * 2)] = ")"
+					case avg:
+						insertables = make([]interface{}, (len(c.operation.operands)*2)+1)
+						insertables[0] = "avg("
+
+						for i, operand := range c.operation.operands {
+							insertables[(i*2)+1] = operand
+							if i != len(c.operation.operands)-1 {
+								insertables[(i*2)+2] = ", "
+							}
+						}
+						insertables[(len(c.operation.operands) * 2)] = ")"
 					}
 
 					vars = insertSliceAt(vars, i, insertables...)
@@ -512,10 +560,54 @@ func (d Decimal) Truncate(precision int32) Decimal {
 // 	return d.decimal.StringScaled(exp)
 // }
 
-// func Min(first Decimal, rest ...Decimal) Decimal {}
-// func Max(first Decimal, rest ...Decimal) Decimal {}
-// func Sum(first Decimal, rest ...Decimal) Decimal {}
-// func Avg(first Decimal, rest ...Decimal) Decimal {}
+func Min(first Decimal, rest ...Decimal) Decimal {
+	newRest := make([]decimal.Decimal, len(rest))
+	for i, r := range rest {
+		newRest[i] = r.decimal
+	}
+
+	return Decimal{
+		decimal:   decimal.Min(first.decimal, newRest...),
+		operation: &operation{min, append([]Decimal{first}, rest...)},
+	}
+}
+
+func Max(first Decimal, rest ...Decimal) Decimal {
+	newRest := make([]decimal.Decimal, len(rest))
+	for i, r := range rest {
+		newRest[i] = r.decimal
+	}
+
+	return Decimal{
+		decimal:   decimal.Max(first.decimal, newRest...),
+		operation: &operation{max, append([]Decimal{first}, rest...)},
+	}
+}
+
+func Sum(first Decimal, rest ...Decimal) Decimal {
+	newRest := make([]decimal.Decimal, len(rest))
+	for i, r := range rest {
+		newRest[i] = r.decimal
+	}
+
+	return Decimal{
+		decimal:   decimal.Sum(first.decimal, newRest...),
+		operation: &operation{sum, append([]Decimal{first}, rest...)},
+	}
+}
+
+func Avg(first Decimal, rest ...Decimal) Decimal {
+	newRest := make([]decimal.Decimal, len(rest))
+	for i, r := range rest {
+		newRest[i] = r.decimal
+	}
+
+	return Decimal{
+		decimal:   decimal.Avg(first.decimal, newRest...),
+		operation: &operation{avg, append([]Decimal{first}, rest...)},
+	}
+}
+
 // func RescalePair(d1 Decimal, d2 Decimal) (Decimal, Decimal) {}
 // func (d *NullDecimal) Scan(value interface{}}) error {}
 // func (d NullDecimal) Value() (driver.Value, error) {}
