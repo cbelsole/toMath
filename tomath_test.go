@@ -331,3 +331,13 @@ func TestStringScaled(t *testing.T) {
 	assert.Equal(t, "123.1", d.StringScaled(-1))
 
 }
+
+func TestUnknownName(t *testing.T) {
+	d := &Decimal{}
+	require.NoError(t, d.UnmarshalJSON([]byte(`123.123`)))
+	require.Equal(t, "123.123", d.String())
+
+	vars, formula := d.Math()
+	assert.Equal(t, "? = ?", vars)
+	assert.Equal(t, "123.123 = 123.123", formula)
+}

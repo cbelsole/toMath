@@ -223,7 +223,12 @@ func (d Decimal) math() (string, string) {
 					formula = insertSliceAt(formula, i, insertables...)
 					i += len(insertables) - 1
 				} else {
-					vars = insertSliceAt(vars, i, c.name)
+					if c.name == "" {
+						vars = insertSliceAt(vars, i, "?")
+					} else {
+						vars = insertSliceAt(vars, i, c.name)
+					}
+
 					formula = insertSliceAt(formula, i, c.decimal.String())
 				}
 			}
