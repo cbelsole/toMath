@@ -1,6 +1,7 @@
 package tomath
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -47,13 +48,12 @@ type (
 	}
 )
 
-// TODO: Implement me to get rid of the ?
-func (d Decimal) Result(name string) Decimal {
+func (d Decimal) SetName(name string) Decimal {
 	d.name = name
 	return d
 }
 
-func (d Decimal) Name() string {
+func (d Decimal) GetName() string {
 	return d.name
 }
 
@@ -516,49 +516,49 @@ func (d Decimal) Truncate(precision int32) Decimal {
 	}
 }
 
-// func (d *Decimal) UnmarshalJSON(decimalBytes []byte) error {
-// 	return d.decimal.UnmarshalJSON(decimalBytes)
-// }
+func (d *Decimal) UnmarshalJSON(decimalBytes []byte) error {
+	return d.decimal.UnmarshalJSON(decimalBytes)
+}
 
-// func (d Decimal) MarshalJSON() ([]byte, error) {
-// 	return d.decimal.MarshalJSON()
-// }
+func (d Decimal) MarshalJSON() ([]byte, error) {
+	return d.decimal.MarshalJSON()
+}
 
-// func (d *Decimal) UnmarshalBinary(data []byte) error {
-// 	return d.decimal.UnmarshalBinary(data)
-// }
+func (d *Decimal) UnmarshalBinary(data []byte) error {
+	return d.decimal.UnmarshalBinary(data)
+}
 
-// func (d Decimal) MarshalBinary() (data []byte, err error) {
-// 	return d.decimal.MarshalBinary()
-// }
+func (d Decimal) MarshalBinary() (data []byte, err error) {
+	return d.decimal.MarshalBinary()
+}
 
-// func (d *Decimal) Scan(value interface{}) error {
-// 	return d.decimal.Scan(value)
-// }
+func (d *Decimal) Scan(value interface{}) error {
+	return d.decimal.Scan(value)
+}
 
-// func (d Decimal) Value() (driver.Value, error) {
-// 	return d.decimal.Value()
-// }
+func (d Decimal) Value() (driver.Value, error) {
+	return d.decimal.Value()
+}
 
-// func (d *Decimal) UnmarshalText(text []byte) error {
-// 	return d.decimal.UnmarshalText(text)
-// }
+func (d *Decimal) UnmarshalText(text []byte) error {
+	return d.decimal.UnmarshalText(text)
+}
 
-// func (d Decimal) MarshalText() (text []byte, err error) {
-// 	return d.decimal.MarshalText()
-// }
+func (d Decimal) MarshalText() (text []byte, err error) {
+	return d.decimal.MarshalText()
+}
 
-// func (d Decimal) GobEncode() ([]byte, error) {
-// 	return d.decimal.GobEncode()
-// }
+func (d Decimal) GobEncode() ([]byte, error) {
+	return d.decimal.GobEncode()
+}
 
-// func (d *Decimal) GobDecode(data []byte) error {
-// 	return d.decimal.GobDecode(data)
-// }
+func (d *Decimal) GobDecode(data []byte) error {
+	return d.decimal.GobDecode(data)
+}
 
-// func (d Decimal) StringScaled(exp int32) string {
-// 	return d.decimal.StringScaled(exp)
-// }
+func (d Decimal) StringScaled(exp int32) string {
+	return d.decimal.StringScaled(exp)
+}
 
 func Min(first Decimal, rest ...Decimal) Decimal {
 	newRest := make([]decimal.Decimal, len(rest))

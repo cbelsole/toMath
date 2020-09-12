@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNew(t *testing.T) {
@@ -195,8 +196,8 @@ func TestTruncate(t *testing.T) {
 	assert.Equal(t, `truncate(0)(4.333) = 4`, formula)
 }
 
-func TestResult(t *testing.T) {
-	d := NewFromFloat("var1", 1).Add(NewFromFloat("var2", 1)).Result("var3")
+func TestSetName(t *testing.T) {
+	d := NewFromFloat("var1", 1).Add(NewFromFloat("var2", 1)).SetName("var3")
 	vars, formula := d.Math()
 	assert.Equal(t, `var1 + var2 = var3`, vars)
 	assert.Equal(t, `1 + 1 = 2`, formula)
@@ -209,7 +210,7 @@ func TestComplexExample(t *testing.T) {
 		Add(NewFromFloat("var2", 1)).
 		Div(NewFromFloat("var3", 2)).
 		Mul(NewFromFloat("var4", 2)).
-		Result("var5")
+		SetName("var5")
 
 	vars, formula := d.Math()
 	assert.Equal(t, `((round(1)(var1) + var2 + var2) / var3) * var4 = var5`, vars)
@@ -263,4 +264,70 @@ func TestRescalePair(t *testing.T) {
 	vars, formula = d2.Math()
 	assert.Equal(t, `var2 = var2`, vars)
 	assert.Equal(t, `2.111 = 2.111`, formula)
+}
+
+func TestUnmarshalJSON(t *testing.T) {
+	d := &Decimal{}
+	require.NoError(t, d.UnmarshalJSON([]byte(`123.123`)))
+	require.Equal(t, "123.123", d.String())
+}
+
+func TestMarshalJSON(t *testing.T) {
+	d := NewFromFloat("var1", 123.123)
+	b, err := d.MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, `"123.123"`, string(b))
+}
+
+func TestBinary(t *testing.T) {
+	d := NewFromFloat("var1", 123.123)
+	b, err := d.MarshalBinary()
+	require.NoError(t, err)
+
+	d2 := &Decimal{}
+	require.NoError(t, d2.UnmarshalBinary(b))
+	require.Equal(t, "123.123", d.String())
+}
+
+func TestScan(t *testing.T) {
+	d := Decimal{}
+	d2 := NewFromFloat("var1", 54.33)
+	require.NoError(t, d.Scan(54.33))
+	require.Equal(t, d.String(), d2.String())
+}
+
+func TestValue(t *testing.T) {
+	d := NewFromFloat("var1", 54.33)
+	SetName, err := d.Value()
+	require.NoError(t, err)
+	require.Equal(t, d.String(), SetName.(string))
+}
+
+func TestUnmarshalText(t *testing.T) {
+	d := &Decimal{}
+	require.NoError(t, d.UnmarshalText([]byte(`123.123`)))
+	require.Equal(t, "123.123", d.String())
+}
+
+func TestMarshalText(t *testing.T) {
+	d := NewFromFloat("var1", 123.123)
+	b, err := d.MarshalText()
+	require.NoError(t, err)
+	require.Equal(t, `123.123`, string(b))
+}
+
+func TestGobEncode(t *testing.T) {
+	d := NewFromFloat("var1", 123.123)
+	b, err := d.GobEncode()
+	require.NoError(t, err)
+
+	d2 := &Decimal{}
+	require.NoError(t, d2.GobDecode(b))
+	require.Equal(t, "123.123", d.String())
+}
+
+func TestStringScaled(t *testing.T) {
+	d := NewFromFloat("var1", 123.123)
+	assert.Equal(t, "123.1", d.StringScaled(-1))
+
 }
