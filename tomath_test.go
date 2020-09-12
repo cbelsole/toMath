@@ -333,11 +333,16 @@ func TestStringScaled(t *testing.T) {
 }
 
 func TestUnknownName(t *testing.T) {
-	d := &Decimal{}
+	d := Decimal{}
 	require.NoError(t, d.UnmarshalJSON([]byte(`123.123`)))
 	require.Equal(t, "123.123", d.String())
 
 	vars, formula := d.Math()
 	assert.Equal(t, "? = ?", vars)
+	assert.Equal(t, "123.123 = 123.123", formula)
+
+	d = d.SetName("var1")
+	vars, formula = d.Math()
+	assert.Equal(t, "var1 = var1", vars)
 	assert.Equal(t, "123.123 = 123.123", formula)
 }
