@@ -346,3 +346,28 @@ func TestUnknownName(t *testing.T) {
 	assert.Equal(t, "var1 = var1", vars)
 	assert.Equal(t, "123.123 = 123.123", formula)
 }
+
+func TestNullDecimalScan(t *testing.T) {
+	d := NullDecimal{}
+	d2 := NewFromFloat("var1", 54.33)
+	require.NoError(t, d.Scan(54.33))
+	require.Equal(t, d.decimal.Decimal.String(), d2.String())
+}
+
+func TestNullDecimalValue(t *testing.T) {
+	d := NewFromFloat("var1", 54.33)
+	SetName, err := d.Value()
+	require.NoError(t, err)
+	require.Equal(t, d.String(), SetName.(string))
+}
+
+func TestNullDecimalJSON(t *testing.T) {
+	d := &NullDecimal{}
+	require.NoError(t, d.UnmarshalJSON([]byte(`123.123`)))
+	require.Equal(t, "123.123", d.Decimal().String())
+
+	b, err := d.MarshalJSON()
+	require.NoError(t, err)
+	require.Equal(t, `"123.123"`, string(b))
+
+}

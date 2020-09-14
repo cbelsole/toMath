@@ -46,6 +46,12 @@ type (
 		decimal   decimal.Decimal
 		operation *operation
 	}
+	NullDecimal struct {
+		name      string
+		precision int
+		decimal   decimal.NullDecimal
+		operation *operation
+	}
 )
 
 func (d Decimal) SetName(name string) Decimal {
@@ -618,10 +624,31 @@ func RescalePair(d1 Decimal, d2 Decimal) (Decimal, Decimal) {
 	return Decimal{name: d1.name, decimal: d3}, Decimal{name: d2.name, decimal: d4}
 }
 
-// func (d *NullDecimal) Scan(value interface{}}) error {}
-// func (d NullDecimal) Value() (driver.Value, error) {}
-// func (d *NullDecimal) UnmarshalJSON(decimalBytes []byte) error {}
-// func (d NullDecimal) MarshalJSON() ([]byte, error) {}
+func (d NullDecimal) Valid() bool {
+	return d.decimal.Valid
+}
+
+func (d NullDecimal) Decimal() Decimal {
+	return Decimal{
+		name:      d.name,
+		precision: d.precision,
+		decimal:   d.decimal.Decimal,
+	}
+}
+
+func (d *NullDecimal) Scan(value interface{}) error {
+	return d.decimal.Scan(value)
+}
+func (d NullDecimal) Value() (driver.Value, error) {
+	return d.decimal.Value()
+}
+func (d *NullDecimal) UnmarshalJSON(decimalBytes []byte) error {
+	return d.decimal.UnmarshalJSON(decimalBytes)
+}
+func (d NullDecimal) MarshalJSON() ([]byte, error) {
+	return d.decimal.MarshalJSON()
+}
+
 // func (d Decimal) Atan() Decimal {}
 // func (d Decimal) Sin() Decimal {}
 // func (d Decimal) Cos() Decimal {}
