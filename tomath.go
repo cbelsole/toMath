@@ -3,7 +3,6 @@ package tomath
 import (
 	"database/sql/driver"
 	"fmt"
-	"log"
 	"math/big"
 	"strings"
 
@@ -441,7 +440,6 @@ func Min(first Decimal, rest ...Decimal) Decimal {
 
 	newRest := make([]decimal.Decimal, len(rest))
 	for i, r := range rest {
-		log.Println(r.vars)
 		newRest[i] = r.decimal
 		varsList[i+1] = r.vars
 		formulaList[i+1] = r.formula
