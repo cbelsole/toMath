@@ -552,7 +552,31 @@ func (d NullDecimal) MarshalJSON() ([]byte, error) {
 	return d.decimal.MarshalJSON()
 }
 
-// func (d Decimal) Atan() Decimal {}
-// func (d Decimal) Sin() Decimal {}
-// func (d Decimal) Cos() Decimal {}
-// func (d Decimal) Tan() Decimal {}
+func (d Decimal) Atan() Decimal {
+	return Decimal{
+		decimal: d.decimal.Atan(),
+		vars:    fmt.Sprintf("atan(%s)", d.vars),
+		formula: fmt.Sprintf("atan(%s)", d.formula),
+	}
+}
+func (d Decimal) Sin() Decimal {
+	return Decimal{
+		decimal: d.decimal.Sin(),
+		vars:    fmt.Sprintf("sin(%s)", d.vars),
+		formula: fmt.Sprintf("sin(%s)", d.formula),
+	}
+}
+func (d Decimal) Cos() Decimal {
+	return Decimal{
+		decimal: d.decimal.Cos(),
+		vars:    fmt.Sprintf("cos(%s)", d.vars),
+		formula: fmt.Sprintf("cos(%s)", d.formula),
+	}
+}
+func (d Decimal) Tan() Decimal {
+	return Decimal{
+		decimal: d.decimal.Tan(),
+		vars:    fmt.Sprintf("tan(%s)", d.vars),
+		formula: fmt.Sprintf("tan(%s)", d.formula),
+	}
+}
