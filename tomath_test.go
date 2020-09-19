@@ -203,6 +203,18 @@ func TestSetName(t *testing.T) {
 	assert.Equal(t, `1 + 1 = 2`, formula)
 }
 
+func TestResolve(t *testing.T) {
+	d := NewFromFloat("var1", 1).Add(NewFromFloat("var2", 1)).SetName("var3")
+	vars, formula := d.Math()
+	assert.Equal(t, `var1 + var2 = var3`, vars)
+	assert.Equal(t, `1 + 1 = 2`, formula)
+
+	d = d.Resolve()
+	vars, formula = d.Math()
+	assert.Equal(t, `var3 = var3`, vars)
+	assert.Equal(t, `2 = 2`, formula)
+}
+
 func TestComplexExample(t *testing.T) {
 	d := NewFromFloat("var1", 1.1).
 		Round(1).
@@ -213,13 +225,13 @@ func TestComplexExample(t *testing.T) {
 		SetName("var5")
 
 	vars, formula := d.Math()
-	assert.Equal(t, `((round(1)(var1) + var2 + var2) / var3) * var4 = var5`, vars)
-	assert.Equal(t, `((round(1)(1.1) + 1 + 1) / 2) * 2 = 3.1`, formula)
+	assert.Equal(t, `(round(1)(var1) + var2 + var2) / var3 * var4 = var5`, vars)
+	assert.Equal(t, `(round(1)(1.1) + 1 + 1) / 2 * 2 = 3.1`, formula)
 
 	// the Math() function is idempotent
 	vars, formula = d.Math()
-	assert.Equal(t, `((round(1)(var1) + var2 + var2) / var3) * var4 = var5`, vars)
-	assert.Equal(t, `((round(1)(1.1) + 1 + 1) / 2) * 2 = 3.1`, formula)
+	assert.Equal(t, `(round(1)(var1) + var2 + var2) / var3 * var4 = var5`, vars)
+	assert.Equal(t, `(round(1)(1.1) + 1 + 1) / 2 * 2 = 3.1`, formula)
 }
 
 func TestMin(t *testing.T) {

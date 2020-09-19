@@ -3,59 +3,32 @@ package tomath
 import (
 	"database/sql/driver"
 	"fmt"
+	"log"
 	"math/big"
-	"strconv"
 	"strings"
 
 	"github.com/shopspring/decimal"
 )
 
-const (
-	abs operator = iota
-	add
-	sub
-	neg
-	mul
-	shift
-	div
-	quoRem
-	divRound
-	mod
-	pow
-	round
-	roundBank
-	roundCash
-	floor
-	ceil
-	truncate
-	min
-	max
-	sum
-	avg
-)
-
 type (
-	operator  int
-	operation struct {
-		operator operator
-		operands []Decimal
-	}
 	Decimal struct {
-		name      string
-		precision int
-		decimal   decimal.Decimal
-		operation *operation
+		parens  bool
+		name    string
+		decimal decimal.Decimal
+		vars    string
+		formula string
 	}
 	NullDecimal struct {
-		name      string
-		precision int
-		decimal   decimal.NullDecimal
-		operation *operation
+		name    string
+		decimal decimal.NullDecimal
 	}
 )
 
 func (d Decimal) SetName(name string) Decimal {
 	d.name = name
+	if d.vars == "" || d.vars == "?" {
+		d.vars = name
+	}
 	return d
 }
 
@@ -63,218 +36,48 @@ func (d Decimal) GetName() string {
 	return d.name
 }
 
+func (d Decimal) Resolve() Decimal {
+	return Decimal{
+		name:    d.name,
+		vars:    d.name,
+		formula: d.String(),
+		decimal: d.decimal,
+	}
+}
+
 func (d Decimal) Decimal() decimal.Decimal {
 	return d.decimal
 }
 
 func (d Decimal) Math() (string, string) {
-	vars, formula := d.math()
-
 	if d.name == "" {
-		vars = fmt.Sprintf("%s = ?", vars)
+		d.vars = fmt.Sprintf("%s = ?", d.vars)
 	} else {
-		vars = fmt.Sprintf("%s = %s", vars, d.name)
+		d.vars = fmt.Sprintf("%s = %s", d.vars, d.name)
 	}
 
-	formula = fmt.Sprintf("%s = %s", formula, d.decimal)
+	d.formula = fmt.Sprintf("%s = %s", d.formula, d.decimal)
 
-	return vars, formula
-}
-
-func insertSliceAt(slice []interface{}, at int, insertables ...interface{}) []interface{} {
-	for i := 0; i < len(insertables)-1; i++ {
-		slice = append(slice, interface{}(nil))
-	}
-
-	copy(slice[at+len(insertables)-1:], slice[at:])
-
-	for i, insert := range insertables {
-		slice[at+i] = insert
-	}
-
-	return slice
-}
-
-func shouldUseParensAt(slice []interface{}, at int) bool {
-	if len(slice) > at+1 {
-		if operator, ok := slice[at+1].(string); ok && operator == " * " || operator == " / " {
-			return true
-		}
-	}
-	return false
-}
-
-func (d Decimal) math() (string, string) {
-	vars := []interface{}{d}
-	formula := []interface{}{d}
-
-	for {
-		breakLoop := true
-
-		for i := 0; i < len(vars); i++ {
-			switch c := vars[i].(type) {
-			case Decimal:
-				breakLoop = false
-
-				if c.operation != nil {
-					var insertables []interface{}
-
-					switch c.operation.operator {
-					case abs:
-						insertables = []interface{}{"abs(", c.operation.operands[0], ")"}
-					case add:
-						if shouldUseParensAt(vars, i) {
-							insertables = []interface{}{"(", c.operation.operands[0], " + ", c.operation.operands[1], ")"}
-						} else {
-							insertables = []interface{}{c.operation.operands[0], " + ", c.operation.operands[1]}
-						}
-
-					case sub:
-						insertables = []interface{}{c.operation.operands[0], " - ", c.operation.operands[1]}
-					case neg:
-						insertables = []interface{}{"neg(", c.operation.operands[0], ")"}
-					case mul:
-						if shouldUseParensAt(vars, i) {
-							insertables = []interface{}{"(", c.operation.operands[0], " * ", c.operation.operands[1], ")"}
-						} else {
-							insertables = []interface{}{c.operation.operands[0], " * ", c.operation.operands[1]}
-						}
-
-					case shift:
-						insertables = []interface{}{"shift(", strconv.Itoa(c.operation.operands[0].precision), ")(", c.operation.operands[0], ")"}
-					case div:
-						if shouldUseParensAt(vars, i) {
-							insertables = []interface{}{"(", c.operation.operands[0], " / ", c.operation.operands[1], ")"}
-						} else {
-							insertables = []interface{}{c.operation.operands[0], " / ", c.operation.operands[1]}
-						}
-
-					case quoRem:
-						insertables = []interface{}{"quoRem(", strconv.Itoa(c.operation.operands[0].precision), ")(", c.operation.operands[0], " / ", c.operation.operands[1], ")"}
-					case divRound:
-						insertables = []interface{}{"divRound(", strconv.Itoa(c.operation.operands[0].precision), ")(", c.operation.operands[0], " / ", c.operation.operands[1], ")"}
-					case mod:
-						if shouldUseParensAt(vars, i) {
-							insertables = []interface{}{"(", c.operation.operands[0], " % ", c.operation.operands[1], ")"}
-						} else {
-							insertables = []interface{}{c.operation.operands[0], " % ", c.operation.operands[1]}
-						}
-
-					case pow:
-						if shouldUseParensAt(vars, i) {
-							insertables = []interface{}{"(", c.operation.operands[0], "^", c.operation.operands[1], ")"}
-						} else {
-							insertables = []interface{}{c.operation.operands[0], "^", c.operation.operands[1]}
-						}
-
-					case round:
-						insertables = []interface{}{"round(", strconv.Itoa(c.operation.operands[0].precision), ")(", c.operation.operands[0], ")"}
-					case roundBank:
-						insertables = []interface{}{"roundBank(", strconv.Itoa(c.operation.operands[0].precision), ")(", c.operation.operands[0], ")"}
-					case roundCash:
-						insertables = []interface{}{"roundCash(", strconv.Itoa(c.operation.operands[0].precision), ")(", c.operation.operands[0], ")"}
-					case floor:
-						insertables = []interface{}{"floor(", c.operation.operands[0], ")"}
-					case ceil:
-						insertables = []interface{}{"ceil(", c.operation.operands[0], ")"}
-					case truncate:
-						insertables = []interface{}{"truncate(", strconv.Itoa(c.operation.operands[0].precision), ")(", c.operation.operands[0], ")"}
-					case min:
-						insertables = make([]interface{}, (len(c.operation.operands)*2)+1)
-						insertables[0] = "min("
-
-						for i, operand := range c.operation.operands {
-							insertables[(i*2)+1] = operand
-							if i != len(c.operation.operands)-1 {
-								insertables[(i*2)+2] = ", "
-							}
-						}
-						insertables[(len(c.operation.operands) * 2)] = ")"
-					case max:
-						insertables = make([]interface{}, (len(c.operation.operands)*2)+1)
-						insertables[0] = "max("
-
-						for i, operand := range c.operation.operands {
-							insertables[(i*2)+1] = operand
-							if i != len(c.operation.operands)-1 {
-								insertables[(i*2)+2] = ", "
-							}
-						}
-						insertables[(len(c.operation.operands) * 2)] = ")"
-					case sum:
-						insertables = make([]interface{}, (len(c.operation.operands)*2)+1)
-						insertables[0] = "sum("
-
-						for i, operand := range c.operation.operands {
-							insertables[(i*2)+1] = operand
-							if i != len(c.operation.operands)-1 {
-								insertables[(i*2)+2] = ", "
-							}
-						}
-						insertables[(len(c.operation.operands) * 2)] = ")"
-					case avg:
-						insertables = make([]interface{}, (len(c.operation.operands)*2)+1)
-						insertables[0] = "avg("
-
-						for i, operand := range c.operation.operands {
-							insertables[(i*2)+1] = operand
-							if i != len(c.operation.operands)-1 {
-								insertables[(i*2)+2] = ", "
-							}
-						}
-						insertables[(len(c.operation.operands) * 2)] = ")"
-					}
-
-					vars = insertSliceAt(vars, i, insertables...)
-					formula = insertSliceAt(formula, i, insertables...)
-					i += len(insertables) - 1
-				} else {
-					if c.name == "" {
-						vars = insertSliceAt(vars, i, "?")
-					} else {
-						vars = insertSliceAt(vars, i, c.name)
-					}
-
-					formula = insertSliceAt(formula, i, c.decimal.String())
-				}
-			}
-		}
-
-		if breakLoop {
-			break
-		}
-	}
-
-	outVars := make([]string, len(vars))
-	for _, v := range vars {
-		outVars = append(outVars, v.(string))
-	}
-
-	outFormula := make([]string, len(formula))
-	for _, f := range formula {
-		outFormula = append(outFormula, f.(string))
-	}
-
-	return strings.Join(outVars, ""), strings.Join(outFormula, "")
+	return d.vars, d.formula
 }
 
 func New(name string, value int64, exp int32) Decimal {
 	d := decimal.New(value, exp)
-	return Decimal{name: name, decimal: d}
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 
 func NewFromInt(name string, value int64) Decimal {
 	d := decimal.NewFromInt(value)
-	return Decimal{name: name, decimal: d}
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 
 func NewFromInt32(name string, value int32) Decimal {
 	d := decimal.NewFromInt32(value)
-	return Decimal{name: name, decimal: d}
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 func NewFromBigInt(name string, value *big.Int, exp int32) Decimal {
 	d := decimal.NewFromBigInt(value, exp)
-	return Decimal{name: name, decimal: d}
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 func NewFromString(name string, value string) (Decimal, error) {
 	d, err := decimal.NewFromString(value)
@@ -282,111 +85,146 @@ func NewFromString(name string, value string) (Decimal, error) {
 		return Decimal{}, err
 	}
 
-	return Decimal{name: name, decimal: d}, nil
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}, nil
 }
 func RequireFromString(name string, value string) Decimal {
 	d := decimal.RequireFromString(value)
-	return Decimal{name: name, decimal: d}
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 func NewFromFloat(name string, value float64) Decimal {
 	d := decimal.NewFromFloat(value)
-	return Decimal{name: name, decimal: d}
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 func NewFromFloat32(name string, value float32) Decimal {
 	d := decimal.NewFromFloat32(value)
-	return Decimal{name: name, decimal: d}
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 func NewFromFloatWithExponent(name string, value float64, exp int32) Decimal {
 	d := decimal.NewFromFloatWithExponent(value, exp)
-	return Decimal{name: name, decimal: d}
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 
 func (d Decimal) Abs() Decimal {
 	return Decimal{
-		decimal:   d.decimal.Abs(),
-		operation: &operation{abs, []Decimal{d}},
+		decimal: d.decimal.Abs(),
+		vars:    fmt.Sprintf("abs(%s)", d.vars),
+		formula: fmt.Sprintf("abs(%s)", d.formula),
 	}
 }
 
 func (d Decimal) Add(d2 Decimal) Decimal {
 	return Decimal{
-		decimal:   d.decimal.Add(d2.decimal),
-		operation: &operation{add, []Decimal{d, d2}},
+		decimal: d.decimal.Add(d2.decimal),
+		vars:    fmt.Sprintf("%s + %s", d.vars, d2.name),
+		formula: fmt.Sprintf("%s + %s", d.formula, d2.String()),
+		parens:  true,
 	}
 }
 
 func (d Decimal) Sub(d2 Decimal) Decimal {
 	return Decimal{
-		decimal:   d.decimal.Sub(d2.decimal),
-		operation: &operation{sub, []Decimal{d, d2}},
+		decimal: d.decimal.Sub(d2.decimal),
+		vars:    fmt.Sprintf("%s - %s", d.vars, d2.name),
+		formula: fmt.Sprintf("%s - %s", d.formula, d2.String()),
+		parens:  true,
 	}
 }
 
 func (d Decimal) Neg() Decimal {
 	return Decimal{
-		decimal:   d.decimal.Neg(),
-		operation: &operation{neg, []Decimal{d}},
+		decimal: d.decimal.Neg(),
+		vars:    fmt.Sprintf("neg(%s)", d.vars),
+		formula: fmt.Sprintf("neg(%s)", d.formula),
 	}
 }
 
 func (d Decimal) Mul(d2 Decimal) Decimal {
-	return Decimal{
-		decimal:   d.decimal.Mul(d2.decimal),
-		operation: &operation{mul, []Decimal{d, d2}},
+	dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
+	if d.parens {
+		dec.vars = fmt.Sprintf("(%s) * %s", d.vars, d2.name)
+		dec.formula = fmt.Sprintf("(%s) * %s", d.formula, d2.String())
+	} else {
+		dec.vars = fmt.Sprintf("%s * %s", d.vars, d2.name)
+		dec.formula = fmt.Sprintf("%s * %s", d.formula, d2.String())
 	}
+
+	return dec
 }
 
 func (d Decimal) Shift(s int32) Decimal {
-	d.precision = int(s)
 	return Decimal{
-		decimal:   d.decimal.Shift(s),
-		operation: &operation{shift, []Decimal{d}},
+		decimal: d.decimal.Shift(s),
+		vars:    fmt.Sprintf("shift(%d)(%s)", s, d.vars),
+		formula: fmt.Sprintf("shift(%d)(%s)", s, d.formula),
 	}
 }
 
 func (d Decimal) Div(d2 Decimal) Decimal {
-	return Decimal{
-		decimal:   d.decimal.Div(d2.decimal),
-		operation: &operation{div, []Decimal{d, d2}},
+	dec := Decimal{decimal: d.decimal.Div(d2.decimal)}
+	if d.parens {
+		dec.vars = fmt.Sprintf("(%s) / %s", d.vars, d2.name)
+		dec.formula = fmt.Sprintf("(%s) / %s", d.formula, d2.String())
+	} else {
+		dec.vars = fmt.Sprintf("%s / %s", d.vars, d2.name)
+		dec.formula = fmt.Sprintf("%s / %s", d.formula, d2.String())
 	}
+
+	return dec
 }
 
 func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
 	d3, d4 := d.decimal.QuoRem(d2.decimal, precision)
-	d.precision = int(precision)
 
-	return Decimal{
-			name:      d.name + d2.name + "Quotient",
-			operation: &operation{quoRem, []Decimal{d, d2}},
-			decimal:   d3,
-		}, Decimal{
-			name:      d.name + d2.name + "Remainder",
-			operation: &operation{quoRem, []Decimal{d, d2}},
-			decimal:   d4,
-		}
+	var vars, formula string
+	if d.parens {
+		vars = fmt.Sprintf("quoRem(%d)((%s) / %s)", precision, d.vars, d2.name)
+		formula = fmt.Sprintf("quoRem(%d)((%s) / %s)", precision, d.formula, d2.String())
+	} else {
+		vars = fmt.Sprintf("quoRem(%d)(%s / %s)", precision, d.vars, d2.name)
+		formula = fmt.Sprintf("quoRem(%d)(%s / %s)", precision, d.formula, d2.String())
+	}
+
+	return Decimal{name: d.name + d2.name + "Quotient", decimal: d3, vars: vars, formula: formula},
+		Decimal{name: d.name + d2.name + "Remainder", decimal: d4, vars: vars, formula: formula}
 }
 
 func (d Decimal) DivRound(d2 Decimal, precision int32) Decimal {
-	d.precision = int(precision)
-
-	return Decimal{
-		decimal:   d.decimal.DivRound(d2.decimal, precision),
-		operation: &operation{divRound, []Decimal{d, d2}},
+	dec := Decimal{decimal: d.decimal.DivRound(d2.decimal, precision)}
+	if d.parens {
+		dec.vars = fmt.Sprintf("divRound(%d)((%s) / %s)", precision, d.vars, d2.name)
+		dec.formula = fmt.Sprintf("divRound(%d)((%s) / %s)", precision, d.formula, d2.String())
+	} else {
+		dec.vars = fmt.Sprintf("divRound(%d)(%s / %s)", precision, d.vars, d2.name)
+		dec.formula = fmt.Sprintf("divRound(%d)(%s / %s)", precision, d.formula, d2.String())
 	}
+
+	return dec
 }
 
 func (d Decimal) Mod(d2 Decimal) Decimal {
-	return Decimal{
-		decimal:   d.decimal.Mod(d2.decimal),
-		operation: &operation{mod, []Decimal{d, d2}},
+	dec := Decimal{decimal: d.decimal.Mod(d2.decimal)}
+	if d.parens {
+		dec.vars = fmt.Sprintf("(%s) %% %s", d.vars, d2.name)
+		dec.formula = fmt.Sprintf("(%s) %% %s", d.formula, d2.String())
+	} else {
+		dec.vars = fmt.Sprintf("%s %% %s", d.vars, d2.name)
+		dec.formula = fmt.Sprintf("%s %% %s", d.formula, d2.String())
 	}
+
+	return dec
 }
 
 func (d Decimal) Pow(d2 Decimal) Decimal {
-	return Decimal{
-		decimal:   d.decimal.Pow(d2.decimal),
-		operation: &operation{pow, []Decimal{d, d2}},
+	dec := Decimal{decimal: d.decimal.Pow(d2.decimal)}
+	if d.parens {
+		dec.vars = fmt.Sprintf("(%s)^%s", d.vars, d2.name)
+		dec.formula = fmt.Sprintf("(%s)^%s", d.formula, d2.String())
+	} else {
+		dec.vars = fmt.Sprintf("%s^%s", d.vars, d2.name)
+		dec.formula = fmt.Sprintf("%s^%s", d.formula, d2.String())
 	}
+
+	return dec
 }
 
 func (d Decimal) Cmp(d2 Decimal) int {
@@ -478,57 +316,61 @@ func (d Decimal) StringFixedCash(interval uint8) string {
 }
 
 func (d Decimal) Round(places int32) Decimal {
-	d.precision = int(places)
-
 	return Decimal{
-		decimal:   d.decimal.Round(places),
-		operation: &operation{round, []Decimal{d}},
+		decimal: d.decimal.Round(places),
+		vars:    fmt.Sprintf("round(%d)(%s)", places, d.vars),
+		formula: fmt.Sprintf("round(%d)(%s)", places, d.formula),
 	}
 }
 
 func (d Decimal) RoundBank(places int32) Decimal {
-	d.precision = int(places)
-
 	return Decimal{
-		decimal:   d.decimal.RoundBank(places),
-		operation: &operation{roundBank, []Decimal{d}},
+		decimal: d.decimal.RoundBank(places),
+		vars:    fmt.Sprintf("roundBank(%d)(%s)", places, d.vars),
+		formula: fmt.Sprintf("roundBank(%d)(%s)", places, d.formula),
 	}
 }
 
 func (d Decimal) RoundCash(interval uint8) Decimal {
-	d.precision = int(interval)
-
 	return Decimal{
-		decimal:   d.decimal.RoundCash(interval),
-		operation: &operation{roundCash, []Decimal{d}},
+		decimal: d.decimal.RoundCash(interval),
+		vars:    fmt.Sprintf("roundCash(%d)(%s)", interval, d.vars),
+		formula: fmt.Sprintf("roundCash(%d)(%s)", interval, d.formula),
 	}
 }
 
 func (d Decimal) Floor() Decimal {
 	return Decimal{
-		decimal:   d.decimal.Floor(),
-		operation: &operation{floor, []Decimal{d}},
+		decimal: d.decimal.Floor(),
+		vars:    fmt.Sprintf("floor(%s)", d.vars),
+		formula: fmt.Sprintf("floor(%s)", d.formula),
 	}
 }
 
 func (d Decimal) Ceil() Decimal {
 	return Decimal{
-		decimal:   d.decimal.Ceil(),
-		operation: &operation{ceil, []Decimal{d}},
+		decimal: d.decimal.Ceil(),
+		vars:    fmt.Sprintf("ceil(%s)", d.vars),
+		formula: fmt.Sprintf("ceil(%s)", d.formula),
 	}
 }
 
 func (d Decimal) Truncate(precision int32) Decimal {
-	d.precision = int(precision)
-
 	return Decimal{
-		decimal:   d.decimal.Truncate(precision),
-		operation: &operation{truncate, []Decimal{d}},
+		decimal: d.decimal.Truncate(precision),
+		vars:    fmt.Sprintf("truncate(%d)(%s)", precision, d.vars),
+		formula: fmt.Sprintf("truncate(%d)(%s)", precision, d.formula),
 	}
 }
 
 func (d *Decimal) UnmarshalJSON(decimalBytes []byte) error {
-	return d.decimal.UnmarshalJSON(decimalBytes)
+	if err := d.decimal.UnmarshalJSON(decimalBytes); err != nil {
+		return err
+	}
+	d.vars = "?"
+	d.formula = d.String()
+
+	return nil
 }
 
 func (d Decimal) MarshalJSON() ([]byte, error) {
@@ -536,7 +378,12 @@ func (d Decimal) MarshalJSON() ([]byte, error) {
 }
 
 func (d *Decimal) UnmarshalBinary(data []byte) error {
-	return d.decimal.UnmarshalBinary(data)
+	if err := d.decimal.UnmarshalBinary(data); err != nil {
+		return err
+	}
+	d.vars = "?"
+	d.formula = d.String()
+	return nil
 }
 
 func (d Decimal) MarshalBinary() (data []byte, err error) {
@@ -544,7 +391,12 @@ func (d Decimal) MarshalBinary() (data []byte, err error) {
 }
 
 func (d *Decimal) Scan(value interface{}) error {
-	return d.decimal.Scan(value)
+	if err := d.decimal.Scan(value); err != nil {
+		return err
+	}
+	d.vars = "?"
+	d.formula = d.String()
+	return nil
 }
 
 func (d Decimal) Value() (driver.Value, error) {
@@ -552,7 +404,12 @@ func (d Decimal) Value() (driver.Value, error) {
 }
 
 func (d *Decimal) UnmarshalText(text []byte) error {
-	return d.decimal.UnmarshalText(text)
+	if err := d.decimal.UnmarshalText(text); err != nil {
+		return err
+	}
+	d.vars = "?"
+	d.formula = d.String()
+	return nil
 }
 
 func (d Decimal) MarshalText() (text []byte, err error) {
@@ -564,6 +421,11 @@ func (d Decimal) GobEncode() ([]byte, error) {
 }
 
 func (d *Decimal) GobDecode(data []byte) error {
+	if err := d.decimal.UnmarshalBinary(data); err != nil {
+		return err
+	}
+	d.vars = "?"
+	d.formula = d.String()
 	return d.decimal.GobDecode(data)
 }
 
@@ -572,56 +434,90 @@ func (d Decimal) StringScaled(exp int32) string {
 }
 
 func Min(first Decimal, rest ...Decimal) Decimal {
+	varsList := make([]string, 1+len(rest))
+	varsList[0] = first.vars
+	formulaList := make([]string, 1+len(rest))
+	formulaList[0] = first.formula
+
 	newRest := make([]decimal.Decimal, len(rest))
 	for i, r := range rest {
+		log.Println(r.vars)
 		newRest[i] = r.decimal
+		varsList[i+1] = r.vars
+		formulaList[i+1] = r.formula
 	}
 
 	return Decimal{
-		decimal:   decimal.Min(first.decimal, newRest...),
-		operation: &operation{min, append([]Decimal{first}, rest...)},
+		decimal: decimal.Min(first.decimal, newRest...),
+		vars:    fmt.Sprintf("min(%s)", strings.Join(varsList, ", ")),
+		formula: fmt.Sprintf("min(%s)", strings.Join(formulaList, ", ")),
 	}
 }
 
 func Max(first Decimal, rest ...Decimal) Decimal {
+	varsList := make([]string, 1+len(rest))
+	varsList[0] = first.vars
+	formulaList := make([]string, 1+len(rest))
+	formulaList[0] = first.formula
+
 	newRest := make([]decimal.Decimal, len(rest))
 	for i, r := range rest {
 		newRest[i] = r.decimal
+		varsList[i+1] = r.vars
+		formulaList[i+1] = r.formula
 	}
 
 	return Decimal{
-		decimal:   decimal.Max(first.decimal, newRest...),
-		operation: &operation{max, append([]Decimal{first}, rest...)},
+		decimal: decimal.Max(first.decimal, newRest...),
+		vars:    fmt.Sprintf("max(%s)", strings.Join(varsList, ", ")),
+		formula: fmt.Sprintf("max(%s)", strings.Join(formulaList, ", ")),
 	}
 }
 
 func Sum(first Decimal, rest ...Decimal) Decimal {
+	varsList := make([]string, 1+len(rest))
+	varsList[0] = first.vars
+	formulaList := make([]string, 1+len(rest))
+	formulaList[0] = first.formula
+
 	newRest := make([]decimal.Decimal, len(rest))
 	for i, r := range rest {
 		newRest[i] = r.decimal
+		varsList[i+1] = r.vars
+		formulaList[i+1] = r.formula
 	}
 
 	return Decimal{
-		decimal:   decimal.Sum(first.decimal, newRest...),
-		operation: &operation{sum, append([]Decimal{first}, rest...)},
+		decimal: decimal.Sum(first.decimal, newRest...),
+		vars:    fmt.Sprintf("sum(%s)", strings.Join(varsList, ", ")),
+		formula: fmt.Sprintf("sum(%s)", strings.Join(formulaList, ", ")),
 	}
 }
 
 func Avg(first Decimal, rest ...Decimal) Decimal {
+	varsList := make([]string, 1+len(rest))
+	varsList[0] = first.vars
+	formulaList := make([]string, 1+len(rest))
+	formulaList[0] = first.formula
+
 	newRest := make([]decimal.Decimal, len(rest))
 	for i, r := range rest {
 		newRest[i] = r.decimal
+		varsList[i+1] = r.vars
+		formulaList[i+1] = r.formula
 	}
 
 	return Decimal{
-		decimal:   decimal.Avg(first.decimal, newRest...),
-		operation: &operation{avg, append([]Decimal{first}, rest...)},
+		decimal: decimal.Avg(first.decimal, newRest...),
+		vars:    fmt.Sprintf("avg(%s)", strings.Join(varsList, ", ")),
+		formula: fmt.Sprintf("avg(%s)", strings.Join(formulaList, ", ")),
 	}
 }
 
 func RescalePair(d1 Decimal, d2 Decimal) (Decimal, Decimal) {
 	d3, d4 := decimal.RescalePair(d1.decimal, d2.decimal)
-	return Decimal{name: d1.name, decimal: d3}, Decimal{name: d2.name, decimal: d4}
+	return Decimal{name: d1.name, decimal: d3, vars: d1.name, formula: d3.String()},
+		Decimal{name: d2.name, decimal: d4, vars: d2.name, formula: d4.String()}
 }
 
 func (d NullDecimal) Valid() bool {
@@ -630,20 +526,29 @@ func (d NullDecimal) Valid() bool {
 
 func (d NullDecimal) Decimal() Decimal {
 	return Decimal{
-		name:      d.name,
-		precision: d.precision,
-		decimal:   d.decimal.Decimal,
+		name:    d.name,
+		decimal: d.decimal.Decimal,
+		vars:    d.name,
+		formula: d.decimal.Decimal.String(),
 	}
 }
 
 func (d *NullDecimal) Scan(value interface{}) error {
-	return d.decimal.Scan(value)
+	if err := d.decimal.Scan(value); err != nil {
+		return err
+	}
+	d.name = "?"
+	return nil
 }
 func (d NullDecimal) Value() (driver.Value, error) {
 	return d.decimal.Value()
 }
 func (d *NullDecimal) UnmarshalJSON(decimalBytes []byte) error {
-	return d.decimal.UnmarshalJSON(decimalBytes)
+	if err := d.decimal.UnmarshalJSON(decimalBytes); err != nil {
+		return err
+	}
+	d.name = "?"
+	return nil
 }
 func (d NullDecimal) MarshalJSON() ([]byte, error) {
 	return d.decimal.MarshalJSON()
