@@ -8,6 +8,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestZero(t *testing.T) {
+	d := Decimal{}
+	assert.Equal(t, "0", d.String())
+	formula, vars := d.Math()
+	assert.Equal(t, "? = ?", formula)
+	assert.Equal(t, "0 = 0", vars)
+}
+
 func TestNew(t *testing.T) {
 	d := New("var1", 0, 0)
 	vars, formula := d.Math()
