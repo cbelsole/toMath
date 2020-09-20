@@ -356,8 +356,8 @@ func (d Decimal) Abs() Decimal {
 func (d Decimal) Add(d2 Decimal) Decimal {
 	return Decimal{
 		decimal: d.decimal.Add(d2.decimal),
-		vars:    fmt.Sprintf("%s + %s", d.vars, d2.name),
-		formula: fmt.Sprintf("%s + %s", d.formula, d2.String()),
+		vars:    fmt.Sprintf("%s + %s", d.vars, d2.vars),
+		formula: fmt.Sprintf("%s + %s", d.formula, d2.formula),
 		parens:  true,
 	}
 }
@@ -366,8 +366,8 @@ func (d Decimal) Add(d2 Decimal) Decimal {
 func (d Decimal) Sub(d2 Decimal) Decimal {
 	return Decimal{
 		decimal: d.decimal.Sub(d2.decimal),
-		vars:    fmt.Sprintf("%s - %s", d.vars, d2.name),
-		formula: fmt.Sprintf("%s - %s", d.formula, d2.String()),
+		vars:    fmt.Sprintf("%s - %s", d.vars, d2.vars),
+		formula: fmt.Sprintf("%s - %s", d.formula, d2.formula),
 		parens:  true,
 	}
 }
@@ -384,13 +384,20 @@ func (d Decimal) Neg() Decimal {
 // Mul returns d * d2.
 func (d Decimal) Mul(d2 Decimal) Decimal {
 	dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
-	if d.parens {
-		dec.vars = fmt.Sprintf("(%s) * %s", d.vars, d2.name)
-		dec.formula = fmt.Sprintf("(%s) * %s", d.formula, d2.String())
+
+	var format string
+	if d.parens && d2.parens {
+		format = "(%s) * (%s)"
+	} else if d.parens {
+		format = "(%s) * %s"
+	} else if d2.parens {
+		format = "%s * (%s)"
 	} else {
-		dec.vars = fmt.Sprintf("%s * %s", d.vars, d2.name)
-		dec.formula = fmt.Sprintf("%s * %s", d.formula, d2.String())
+		format = "%s * %s"
 	}
+
+	dec.vars = fmt.Sprintf(format, d.vars, d2.vars)
+	dec.formula = fmt.Sprintf(format, d.formula, d2.formula)
 
 	return dec
 }
@@ -411,13 +418,20 @@ func (d Decimal) Shift(s int32) Decimal {
 // DivisionPrecision digits after the decimal point.
 func (d Decimal) Div(d2 Decimal) Decimal {
 	dec := Decimal{decimal: d.decimal.Div(d2.decimal)}
-	if d.parens {
-		dec.vars = fmt.Sprintf("(%s) / %s", d.vars, d2.name)
-		dec.formula = fmt.Sprintf("(%s) / %s", d.formula, d2.String())
+
+	var format string
+	if d.parens && d2.parens {
+		format = "(%s) / (%s)"
+	} else if d.parens {
+		format = "(%s) / %s"
+	} else if d2.parens {
+		format = "%s / (%s)"
 	} else {
-		dec.vars = fmt.Sprintf("%s / %s", d.vars, d2.name)
-		dec.formula = fmt.Sprintf("%s / %s", d.formula, d2.String())
+		format = "%s / %s"
 	}
+
+	dec.vars = fmt.Sprintf(format, d.vars, d2.vars)
+	dec.formula = fmt.Sprintf(format, d.formula, d2.formula)
 
 	return dec
 }
@@ -431,14 +445,19 @@ func (d Decimal) Div(d2 Decimal) Decimal {
 func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
 	d3, d4 := d.decimal.QuoRem(d2.decimal, precision)
 
-	var vars, formula string
-	if d.parens {
-		vars = fmt.Sprintf("quoRem(%d)((%s) / %s)", precision, d.vars, d2.name)
-		formula = fmt.Sprintf("quoRem(%d)((%s) / %s)", precision, d.formula, d2.String())
+	var format string
+	if d.parens && d2.parens {
+		format = "quoRem(%d)((%s) / (%s))"
+	} else if d.parens {
+		format = "quoRem(%d)((%s) / %s)"
+	} else if d2.parens {
+		format = "quoRem(%d)(%s / (%s))"
 	} else {
-		vars = fmt.Sprintf("quoRem(%d)(%s / %s)", precision, d.vars, d2.name)
-		formula = fmt.Sprintf("quoRem(%d)(%s / %s)", precision, d.formula, d2.String())
+		format = "quoRem(%d)(%s / %s)"
 	}
+
+	vars := fmt.Sprintf(format, precision, d.vars, d2.vars)
+	formula := fmt.Sprintf(format, precision, d.formula, d2.formula)
 
 	return Decimal{name: d.name + d2.name + "Quotient", decimal: d3, vars: vars, formula: formula},
 		Decimal{name: d.name + d2.name + "Remainder", decimal: d4, vars: vars, formula: formula}
@@ -451,13 +470,20 @@ func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
 // Note that precision<0 is allowed as input.
 func (d Decimal) DivRound(d2 Decimal, precision int32) Decimal {
 	dec := Decimal{decimal: d.decimal.DivRound(d2.decimal, precision)}
-	if d.parens {
-		dec.vars = fmt.Sprintf("divRound(%d)((%s) / %s)", precision, d.vars, d2.name)
-		dec.formula = fmt.Sprintf("divRound(%d)((%s) / %s)", precision, d.formula, d2.String())
+
+	var format string
+	if d.parens && d2.parens {
+		format = "divRound(%d)((%s) / (%s))"
+	} else if d.parens {
+		format = "divRound(%d)((%s) / %s)"
+	} else if d2.parens {
+		format = "divRound(%d)(%s / (%s))"
 	} else {
-		dec.vars = fmt.Sprintf("divRound(%d)(%s / %s)", precision, d.vars, d2.name)
-		dec.formula = fmt.Sprintf("divRound(%d)(%s / %s)", precision, d.formula, d2.String())
+		format = "divRound(%d)(%s / %s)"
 	}
+
+	dec.vars = fmt.Sprintf(format, precision, d.vars, d2.vars)
+	dec.formula = fmt.Sprintf(format, precision, d.formula, d2.formula)
 
 	return dec
 }
@@ -465,13 +491,20 @@ func (d Decimal) DivRound(d2 Decimal, precision int32) Decimal {
 // Mod returns d % d2.
 func (d Decimal) Mod(d2 Decimal) Decimal {
 	dec := Decimal{decimal: d.decimal.Mod(d2.decimal)}
-	if d.parens {
-		dec.vars = fmt.Sprintf("(%s) %% %s", d.vars, d2.name)
-		dec.formula = fmt.Sprintf("(%s) %% %s", d.formula, d2.String())
+
+	var format string
+	if d.parens && d2.parens {
+		format = "(%s) %% (%s)"
+	} else if d.parens {
+		format = "(%s) %% %s"
+	} else if d2.parens {
+		format = "%s %% (%s)"
 	} else {
-		dec.vars = fmt.Sprintf("%s %% %s", d.vars, d2.name)
-		dec.formula = fmt.Sprintf("%s %% %s", d.formula, d2.String())
+		format = "%s %% %s"
 	}
+
+	dec.vars = fmt.Sprintf(format, d.vars, d2.vars)
+	dec.formula = fmt.Sprintf(format, d.formula, d2.formula)
 
 	return dec
 }
@@ -479,13 +512,20 @@ func (d Decimal) Mod(d2 Decimal) Decimal {
 // Pow returns d to the power d2
 func (d Decimal) Pow(d2 Decimal) Decimal {
 	dec := Decimal{decimal: d.decimal.Pow(d2.decimal)}
-	if d.parens {
-		dec.vars = fmt.Sprintf("(%s)^%s", d.vars, d2.name)
-		dec.formula = fmt.Sprintf("(%s)^%s", d.formula, d2.String())
+
+	var format string
+	if d.parens && d2.parens {
+		format = "(%s)^(%s)"
+	} else if d.parens {
+		format = "(%s)^%s"
+	} else if d2.parens {
+		format = "%s^(%s)"
 	} else {
-		dec.vars = fmt.Sprintf("%s^%s", d.vars, d2.name)
-		dec.formula = fmt.Sprintf("%s^%s", d.formula, d2.String())
+		format = "%s^%s"
 	}
+
+	dec.vars = fmt.Sprintf(format, d.vars, d2.vars)
+	dec.formula = fmt.Sprintf(format, d.formula, d2.formula)
 
 	return dec
 }

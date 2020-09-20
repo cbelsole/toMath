@@ -320,17 +320,17 @@ func TestComplexExample(t *testing.T) {
 		Add(NewFromFloatWithName("var2", 1)).
 		Add(NewFromFloatWithName("var2", 1)).
 		Div(NewFromFloatWithName("var3", 2)).
-		Mul(NewFromFloatWithName("var4", 2)).
+		Mul(NewFromFloatWithName("OneHundred", 100).Add(NewFromFloatWithName("var4", 3))).
 		SetName("var5")
 
 	vars, formula := d.Math()
-	assert.Equal(t, "(round(1)(var1) + var2 + var2) / var3 * var4 = var5", vars)
-	assert.Equal(t, "(round(1)(1.1) + 1 + 1) / 2 * 2 = 3.1", formula)
+	assert.Equal(t, "(round(1)(var1) + var2 + var2) / var3 * (OneHundred + var4) = var5", vars)
+	assert.Equal(t, "(round(1)(1.1) + 1 + 1) / 2 * (100 + 3) = 159.65", formula)
 
 	// the Math() function is idempotent
 	vars, formula = d.Math()
-	assert.Equal(t, "(round(1)(var1) + var2 + var2) / var3 * var4 = var5", vars)
-	assert.Equal(t, "(round(1)(1.1) + 1 + 1) / 2 * 2 = 3.1", formula)
+	assert.Equal(t, "(round(1)(var1) + var2 + var2) / var3 * (OneHundred + var4) = var5", vars)
+	assert.Equal(t, "(round(1)(1.1) + 1 + 1) / 2 * (100 + 3) = 159.65", formula)
 }
 
 func TestMin(t *testing.T) {
