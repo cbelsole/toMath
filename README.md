@@ -7,7 +7,10 @@ toMath is a wrapper library for [shopspring/decimal](https://github.com/shopspri
 ```go
 package main
 
-import "github.com/cbelsole/tomath"
+import (
+	"github.com/cbelsole/tomath"
+	"github.com/stretchr/testify/assert"
+)
 
 func main() {
 	d := tomath.NewFromFloatWithName("var1", 1.1).
