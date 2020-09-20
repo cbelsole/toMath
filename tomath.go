@@ -3,9 +3,9 @@
 // The zero-value of a Decimal is 0, as you would expect.
 // The zero-value name is "?". To set a name for a decimal without a name use the SetName() method.
 //
-// The best way to create a new Decimal is to use decimal.NewFromString, ex:
+// The best way to create a new Decimal is to use decimal.NewFromStringWithName, ex:
 //
-//     n, err := decimal.NewFromString("var1", "1.3")
+//     n, err := decimal.NewFromStringWithName("var1", "1.3")
 //     n.String() // output: "3.1"
 //
 //     vars, formula := n.Add("var2", "1.8")
@@ -51,6 +51,15 @@ type (
 	}
 )
 
+var (
+	Zero = Decimal{
+		decimal: decimal.Zero,
+		name:    "zero",
+		vars:    "zero",
+		formula: "0",
+	}
+)
+
 // SetName sets the name of the Decimal
 func (d Decimal) SetName(name string) Decimal {
 	d.name = name
@@ -74,6 +83,11 @@ func (d Decimal) Resolve() Decimal {
 		formula: d.String(),
 		decimal: d.decimal,
 	}
+}
+
+// ResolveTo is a wrapper around SetName() and Resolve().
+func (d Decimal) ResolveTo(name string) Decimal {
+	return d.SetName(name).Resolve()
 }
 
 // Decimal ejects the github.com/shopspring/decimal#Decimal
@@ -104,7 +118,13 @@ func (d Decimal) Math() (string, string) {
 }
 
 // New returns a new fixed-point decimal, value * 10 ^ exp.
-func New(name string, value int64, exp int32) Decimal {
+func New(value int64, exp int32) Decimal {
+	d := decimal.New(value, exp)
+	return Decimal{decimal: d, formula: d.String()}
+}
+
+// NewWithName returns a new fixed-point decimal, value * 10 ^ exp with a given name.
+func NewWithName(name string, value int64, exp int32) Decimal {
 	d := decimal.New(value, exp)
 	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
@@ -113,9 +133,20 @@ func New(name string, value int64, exp int32) Decimal {
 //
 // Example:
 //
-//     NewFromInt("var1", 123).String() // output: "123"
-//     NewFromInt("var1", -10).String() // output: "-10"
-func NewFromInt(name string, value int64) Decimal {
+//     NewFromInt(123).String() // output: "123"
+//     NewFromInt(-10).String() // output: "-10"
+func NewFromInt(value int64) Decimal {
+	d := decimal.NewFromInt(value)
+	return Decimal{decimal: d, formula: d.String()}
+}
+
+// NewFromIntWithName converts a int64 to Decimal with a given name.
+//
+// Example:
+//
+//     NewFromIntWithName("var1", 123).String() // output: "123"
+//     NewFromIntWithName("var1", -10).String() // output: "-10"
+func NewFromIntWithName(name string, value int64) Decimal {
 	d := decimal.NewFromInt(value)
 	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
@@ -124,15 +155,33 @@ func NewFromInt(name string, value int64) Decimal {
 //
 // Example:
 //
-//     NewFromInt("var1", 123).String() // output: "123"
-//     NewFromInt("var1", -10).String() // output: "-10"
-func NewFromInt32(name string, value int32) Decimal {
+//     NewFromInt(123).String() // output: "123"
+//     NewFromInt(-10).String() // output: "-10"
+func NewFromInt32(value int32) Decimal {
+	d := decimal.NewFromInt32(value)
+	return Decimal{decimal: d, formula: d.String()}
+}
+
+// NewFromInt32WithName converts a int32 to Decimal with a given name.
+//
+// Example:
+//
+//     NewFromInt32WithName("var1", 123).String() // output: "123"
+//     NewFromInt32WithName("var1", -10).String() // output: "-10"
+func NewFromInt32WithName(name string, value int32) Decimal {
 	d := decimal.NewFromInt32(value)
 	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 
 // NewFromBigInt returns a new Decimal from a big.Int, value * 10 ^ exp
-func NewFromBigInt(name string, value *big.Int, exp int32) Decimal {
+func NewFromBigInt(value *big.Int, exp int32) Decimal {
+	d := decimal.NewFromBigInt(value, exp)
+	return Decimal{decimal: d, formula: d.String()}
+}
+
+// NewFromBigIntWithName returns a new Decimal from a big.Int, value * 10 ^ exp
+// with a given name
+func NewFromBigIntWithName(name string, value *big.Int, exp int32) Decimal {
 	d := decimal.NewFromBigInt(value, exp)
 	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
@@ -142,11 +191,29 @@ func NewFromBigInt(name string, value *big.Int, exp int32) Decimal {
 //
 // Example:
 //
-//     d, err := NewFromString("var1", "-123.45")
-//     d2, err := NewFromString("var1", ".0001")
-//     d3, err := NewFromString("var1", "1.47000")
+//     d, err := NewFromString("-123.45")
+//     d2, err := NewFromString(".0001")
+//     d3, err := NewFromString("1.47000")
 //
-func NewFromString(name string, value string) (Decimal, error) {
+func NewFromString(value string) (Decimal, error) {
+	d, err := decimal.NewFromString(value)
+	if err != nil {
+		return Decimal{}, err
+	}
+
+	return Decimal{decimal: d, formula: d.String()}, nil
+}
+
+// NewFromStringWithName returns a new Decimal from a string representation with
+// a given name. Trailing zeroes are not trimmed.
+//
+// Example:
+//
+//     d, err := NewFromStringWithName("var1", "-123.45")
+//     d2, err := NewFromStringWithName("var1", ".0001")
+//     d3, err := NewFromStringWithName("var1", "1.47000")
+//
+func NewFromStringWithName(name string, value string) (Decimal, error) {
 	d, err := decimal.NewFromString(value)
 	if err != nil {
 		return Decimal{}, err
@@ -160,10 +227,23 @@ func NewFromString(name string, value string) (Decimal, error) {
 //
 // Example:
 //
-//     d := RequireFromString("var1", "-123.45")
-//     d2 := RequireFromString("var1", ".0001")
+//     d := RequireFromString("-123.45")
+//     d2 := RequireFromString(".0001")
 //
-func RequireFromString(name string, value string) Decimal {
+func RequireFromString(value string) Decimal {
+	d := decimal.RequireFromString(value)
+	return Decimal{decimal: d, formula: d.String()}
+}
+
+// RequireFromStringWithName returns a new Decimal from a string representation
+// with a given name or panics if NewFromString would have returned an error.
+//
+// Example:
+//
+//     d := RequireFromStringWithName("var1", "-123.45")
+//     d2 := RequireFromStringWithName("var1", ".0001")
+//
+func RequireFromStringWithName(name string, value string) Decimal {
 	d := decimal.RequireFromString(value)
 	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
@@ -178,7 +258,22 @@ func RequireFromString(name string, value string) Decimal {
 // For slightly faster conversion, use NewFromFloatWithExponent where you can specify the precision in absolute terms.
 //
 // NOTE: this will panic on NaN, +/-inf
-func NewFromFloat(name string, value float64) Decimal {
+func NewFromFloat(value float64) Decimal {
+	d := decimal.NewFromFloat(value)
+	return Decimal{decimal: d, formula: d.String()}
+}
+
+// NewFromFloatWithName converts a float64 to Decimal with a given name.
+//
+// The converted number will contain the number of significant digits that can be
+// represented in a float with reliable roundtrip.
+// This is typically 15 digits, but may be more in some cases.
+// See https://www.exploringbinary.com/decimal-precision-of-binary-floating-point-numbers/ for more information.
+//
+// For slightly faster conversion, use NewFromFloatWithNameWithExponent where you can specify the precision in absolute terms.
+//
+// NOTE: this will panic on NaN, +/-inf
+func NewFromFloatWithName(name string, value float64) Decimal {
 	d := decimal.NewFromFloat(value)
 	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
@@ -193,7 +288,22 @@ func NewFromFloat(name string, value float64) Decimal {
 // For slightly faster conversion, use NewFromFloatWithExponent where you can specify the precision in absolute terms.
 //
 // NOTE: this will panic on NaN, +/-inf
-func NewFromFloat32(name string, value float32) Decimal {
+func NewFromFloat32(value float32) Decimal {
+	d := decimal.NewFromFloat32(value)
+	return Decimal{decimal: d, formula: d.String()}
+}
+
+// NewFromFloat32WithName converts a float32 to Decimal with a given name.
+//
+// The converted number will contain the number of significant digits that can be
+// represented in a float with reliable roundtrip.
+// This is typically 6-8 digits depending on the input.
+// See https://www.exploringbinary.com/decimal-precision-of-binary-floating-point-numbers/ for more information.
+//
+// For slightly faster conversion, use NewFromFloatWithExponent where you can specify the precision in absolute terms.
+//
+// NOTE: this will panic on NaN, +/-inf
+func NewFromFloat32WithName(name string, value float32) Decimal {
 	d := decimal.NewFromFloat32(value)
 	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
@@ -203,10 +313,33 @@ func NewFromFloat32(name string, value float32) Decimal {
 //
 // Example:
 //
-//     NewFromFloatWithExponent("var1", 123.456, -2).String() // output: "123.46"
+//     NewFromFloatWithExponent(123.456, -2).String() // output: "123.46"
 //
-func NewFromFloatWithExponent(name string, value float64, exp int32) Decimal {
+func NewFromFloatWithExponent(value float64, exp int32) Decimal {
 	d := decimal.NewFromFloatWithExponent(value, exp)
+	return Decimal{decimal: d, formula: d.String()}
+}
+
+// NewFromFloatWithExponentWithName converts a float64 to Decimal with a given name, with an arbitrary
+// number of fractional digits.
+//
+// Example:
+//
+//     NewFromFloatWithExponentWithName("var1", 123.456, -2).String() // output: "123.46"
+//
+func NewFromFloatWithExponentWithName(name string, value float64, exp int32) Decimal {
+	d := decimal.NewFromFloatWithExponent(value, exp)
+	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+}
+
+// NewFromDecimal returns a new Decimal from github.com/shopspring/decimal#Decimal.
+func NewFromDecimal(d decimal.Decimal) Decimal {
+	return Decimal{decimal: d, formula: d.String()}
+}
+
+// NewFromDecimalWithName returns a new Decimal from github.com/shopspring/decimal#Decimal
+// with a given name.
+func NewFromDecimalWithName(name string, d decimal.Decimal) Decimal {
 	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
 }
 

@@ -8,4 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Functions to wrap [github.com/shopspring/decimalv1.2.0](https://github.com/shopspring/decimal/releases/tag/v1.2.0) Decimal and NullDecimal types.
 - Helper functions GetName(), SetName(), Resolve(), Decimal(), Math()
+- Zero var with name zero representing zero
+- New methods duplicated WithName for easier drop in nature.
+- NewFromDecimal() and NewFromDecimalWithName() for easier integration.
+- ResolveTo() method wraps SetName() and Resolve() for easier resolution.
 
