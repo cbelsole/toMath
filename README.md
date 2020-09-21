@@ -1,9 +1,16 @@
 # toMath
 
-**This library is currently in an alpha state. Do not use in production.**
+toMath is a wrapper library for [shopspring/decimal](https://github.com/shopspring/decimal), an arbitrary-precision fixed-point decimal numbers in go, where you can create a Decimal, run operations on it, and output the math underlying those operations.
 
-toMath is a wrapper library for [shopspring/decimal](https://github.com/shopspring/decimal) where you can create a decimal, run operations on it, and output the math underlying those operations. For example:
+## Install
+```
+go get github.com/cbelsole/tomath
+```
 
+## Requirements
+Decimal library requires Go version `>=1.7`
+
+## Usage
 ```go
 package main
 
@@ -36,3 +43,17 @@ func timesOneHundred(input tomath.Decimal) tomath.Decimal {
 	return input.Mul(oneHundred).ResolveTo(input.GetName() + "Times" + oneHundred.GetName())
 }
 ```
+
+### Notes
+
+* toMath makes no assertions on Decimal names. Use `()+-*/^%=` characters at your own risk.
+
+## Documentation
+[pkg.go.dev/github.com/cbelsole/tomath](https://pkg.go.dev/github.com/cbelsole/tomath)
+
+## License
+The MIT License (MIT)
+
+[shopspring/decimal](https://github.com/shopspring/decimal) - The MIT License (MIT)
+
+[fpd.Decimal](https://github.com/oguzbilgic/fpd) - The MIT License (MIT)
