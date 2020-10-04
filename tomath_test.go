@@ -2,6 +2,7 @@ package tomath
 
 import (
 	"math/big"
+	"strconv"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -509,4 +510,24 @@ func TestTan(t *testing.T) {
 	vars, formula := d.Math()
 	assert.Equal(t, "tan(var1) = ?", vars)
 	assert.Equal(t, "tan(1) = 1.5574077246549025", formula)
+}
+
+func BenchmarkToMath(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		d := NewFromFloatWithName("start", 100)
+		for j := 0; j < 100; j++ {
+			d = d.Add(NewFromFloatWithName("var"+strconv.Itoa(j), float64(i)))
+		}
+		d.Math()
+	}
+}
+
+func BenchmarkDecimal(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		d := decimal.NewFromFloat(100)
+		for j := 0; j < 100; j++ {
+			d = d.Add(decimal.NewFromFloat(float64(i)))
+		}
+		d.String()
+	}
 }

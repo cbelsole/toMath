@@ -25,11 +25,43 @@ package tomath
 
 import (
 	"database/sql/driver"
-	"fmt"
 	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/shopspring/decimal"
+)
+
+const (
+	leftParen  = "("
+	rightParen = ")"
+	abs        = "abs"
+	add        = " + "
+	sub        = " - "
+	neg        = "neg"
+	mul        = " * "
+	shift      = "shift"
+	div        = " / "
+	quoRem     = "quoRem"
+	divRound   = "divRound"
+	mod        = " % "
+	pow        = "^"
+	round      = "round"
+	roundBank  = "roundBank"
+	roundCash  = "roundCash"
+	floor      = "floor"
+	ceil       = "ceil"
+	truncate   = "truncate"
+	min        = "min"
+	comma      = ", "
+	max        = "max"
+	sum        = "sum"
+	avg        = "avg"
+	atan       = "atan"
+	sin        = "sin"
+	cos        = "cos"
+	tan        = "tan"
+	equal      = " = "
 )
 
 type (
@@ -111,10 +143,8 @@ func (d Decimal) Math() (string, string) {
 		d.formula = d.String()
 	}
 
-	d.vars = fmt.Sprintf("%s = %s", d.vars, d.name)
-	d.formula = fmt.Sprintf("%s = %s", d.formula, d.decimal)
-
-	return d.vars, d.formula
+	return d.vars + equal + d.name,
+		d.formula + equal + d.String()
 }
 
 // New returns a new fixed-point decimal, value * 10 ^ exp.
@@ -347,8 +377,8 @@ func NewFromDecimalWithName(name string, d decimal.Decimal) Decimal {
 func (d Decimal) Abs() Decimal {
 	return Decimal{
 		decimal: d.decimal.Abs(),
-		vars:    fmt.Sprintf("abs(%s)", d.vars),
-		formula: fmt.Sprintf("abs(%s)", d.formula),
+		vars:    abs + leftParen + d.vars + rightParen,
+		formula: abs + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -356,8 +386,8 @@ func (d Decimal) Abs() Decimal {
 func (d Decimal) Add(d2 Decimal) Decimal {
 	return Decimal{
 		decimal: d.decimal.Add(d2.decimal),
-		vars:    fmt.Sprintf("%s + %s", d.vars, d2.vars),
-		formula: fmt.Sprintf("%s + %s", d.formula, d2.formula),
+		vars:    d.vars + add + d2.vars,
+		formula: d.formula + add + d2.formula,
 		parens:  true,
 	}
 }
@@ -366,8 +396,8 @@ func (d Decimal) Add(d2 Decimal) Decimal {
 func (d Decimal) Sub(d2 Decimal) Decimal {
 	return Decimal{
 		decimal: d.decimal.Sub(d2.decimal),
-		vars:    fmt.Sprintf("%s - %s", d.vars, d2.vars),
-		formula: fmt.Sprintf("%s - %s", d.formula, d2.formula),
+		vars:    d.vars + sub + d2.vars,
+		formula: d.formula + sub + d2.formula,
 		parens:  true,
 	}
 }
@@ -376,28 +406,34 @@ func (d Decimal) Sub(d2 Decimal) Decimal {
 func (d Decimal) Neg() Decimal {
 	return Decimal{
 		decimal: d.decimal.Neg(),
-		vars:    fmt.Sprintf("neg(%s)", d.vars),
-		formula: fmt.Sprintf("neg(%s)", d.formula),
+		vars:    neg + leftParen + d.vars + rightParen,
+		formula: neg + leftParen + d.formula + rightParen,
 	}
 }
 
 // Mul returns d * d2.
 func (d Decimal) Mul(d2 Decimal) Decimal {
 	dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
+	var vars, formula string
 
-	var format string
-	if d.parens && d2.parens {
-		format = "(%s) * (%s)"
-	} else if d.parens {
-		format = "(%s) * %s"
-	} else if d2.parens {
-		format = "%s * (%s)"
+	if d.parens {
+		vars += leftParen + d.vars + rightParen + mul
+		formula += leftParen + d.formula + rightParen + mul
 	} else {
-		format = "%s * %s"
+		vars += d.vars + mul
+		formula += d.formula + mul
 	}
 
-	dec.vars = fmt.Sprintf(format, d.vars, d2.vars)
-	dec.formula = fmt.Sprintf(format, d.formula, d2.formula)
+	if d2.parens {
+		vars += leftParen + d2.vars + rightParen
+		formula += leftParen + d2.formula + rightParen
+	} else {
+		vars += d2.vars
+		formula += d2.formula
+	}
+
+	dec.vars = vars
+	dec.formula = formula
 
 	return dec
 }
@@ -407,10 +443,11 @@ func (d Decimal) Mul(d2 Decimal) Decimal {
 // In simpler terms, the given value for shift is added to the exponent
 // of the decimal.
 func (d Decimal) Shift(s int32) Decimal {
+	places := strconv.Itoa(int(s))
 	return Decimal{
 		decimal: d.decimal.Shift(s),
-		vars:    fmt.Sprintf("shift(%d)(%s)", s, d.vars),
-		formula: fmt.Sprintf("shift(%d)(%s)", s, d.formula),
+		vars:    shift + leftParen + places + rightParen + leftParen + d.vars + rightParen,
+		formula: shift + leftParen + places + rightParen + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -419,19 +456,25 @@ func (d Decimal) Shift(s int32) Decimal {
 func (d Decimal) Div(d2 Decimal) Decimal {
 	dec := Decimal{decimal: d.decimal.Div(d2.decimal)}
 
-	var format string
-	if d.parens && d2.parens {
-		format = "(%s) / (%s)"
-	} else if d.parens {
-		format = "(%s) / %s"
-	} else if d2.parens {
-		format = "%s / (%s)"
+	var vars, formula string
+	if d.parens {
+		vars += leftParen + d.vars + rightParen + div
+		formula += leftParen + d.formula + rightParen + div
 	} else {
-		format = "%s / %s"
+		vars += d.vars + div
+		formula += d.formula + div
 	}
 
-	dec.vars = fmt.Sprintf(format, d.vars, d2.vars)
-	dec.formula = fmt.Sprintf(format, d.formula, d2.formula)
+	if d2.parens {
+		vars += leftParen + d2.vars + rightParen
+		formula += leftParen + d2.formula + rightParen
+	} else {
+		vars += d2.vars
+		formula += d2.formula
+	}
+
+	dec.vars = vars
+	dec.formula = formula
 
 	return dec
 }
@@ -444,20 +487,24 @@ func (d Decimal) Div(d2 Decimal) Decimal {
 // Note that precision<0 is allowed as input.
 func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
 	d3, d4 := d.decimal.QuoRem(d2.decimal, precision)
+	p := strconv.Itoa(int(precision))
 
-	var format string
-	if d.parens && d2.parens {
-		format = "quoRem(%d)((%s) / (%s))"
-	} else if d.parens {
-		format = "quoRem(%d)((%s) / %s)"
-	} else if d2.parens {
-		format = "quoRem(%d)(%s / (%s))"
+	var vars, formula string
+	if d.parens {
+		vars += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.vars + rightParen + div
+		formula += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.formula + rightParen + div
 	} else {
-		format = "quoRem(%d)(%s / %s)"
+		vars += quoRem + leftParen + p + rightParen + leftParen + d.vars + div
+		formula += quoRem + leftParen + p + rightParen + leftParen + d.formula + div
 	}
 
-	vars := fmt.Sprintf(format, precision, d.vars, d2.vars)
-	formula := fmt.Sprintf(format, precision, d.formula, d2.formula)
+	if d2.parens {
+		vars += leftParen + d2.vars + rightParen + rightParen
+		formula += leftParen + d2.formula + rightParen + rightParen
+	} else {
+		vars += d2.vars + rightParen
+		formula += d2.formula + rightParen
+	}
 
 	return Decimal{name: d.name + d2.name + "Quotient", decimal: d3, vars: vars, formula: formula},
 		Decimal{name: d.name + d2.name + "Remainder", decimal: d4, vars: vars, formula: formula}
@@ -470,20 +517,27 @@ func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
 // Note that precision<0 is allowed as input.
 func (d Decimal) DivRound(d2 Decimal, precision int32) Decimal {
 	dec := Decimal{decimal: d.decimal.DivRound(d2.decimal, precision)}
+	p := strconv.Itoa(int(precision))
 
-	var format string
-	if d.parens && d2.parens {
-		format = "divRound(%d)((%s) / (%s))"
-	} else if d.parens {
-		format = "divRound(%d)((%s) / %s)"
-	} else if d2.parens {
-		format = "divRound(%d)(%s / (%s))"
+	var vars, formula string
+	if d.parens {
+		vars += divRound + leftParen + p + rightParen + leftParen + leftParen + d.vars + rightParen + div
+		formula += divRound + leftParen + p + rightParen + leftParen + leftParen + d.formula + rightParen + div
 	} else {
-		format = "divRound(%d)(%s / %s)"
+		vars += divRound + leftParen + p + rightParen + leftParen + d.vars + div
+		formula += divRound + leftParen + p + rightParen + leftParen + d.formula + div
 	}
 
-	dec.vars = fmt.Sprintf(format, precision, d.vars, d2.vars)
-	dec.formula = fmt.Sprintf(format, precision, d.formula, d2.formula)
+	if d2.parens {
+		vars += leftParen + d2.vars + rightParen + rightParen
+		formula += leftParen + d2.formula + rightParen + rightParen
+	} else {
+		vars += d2.vars + rightParen
+		formula += d2.formula + rightParen
+	}
+
+	dec.vars = vars
+	dec.formula = formula
 
 	return dec
 }
@@ -492,19 +546,25 @@ func (d Decimal) DivRound(d2 Decimal, precision int32) Decimal {
 func (d Decimal) Mod(d2 Decimal) Decimal {
 	dec := Decimal{decimal: d.decimal.Mod(d2.decimal)}
 
-	var format string
-	if d.parens && d2.parens {
-		format = "(%s) %% (%s)"
-	} else if d.parens {
-		format = "(%s) %% %s"
-	} else if d2.parens {
-		format = "%s %% (%s)"
+	var vars, formula string
+	if d.parens {
+		vars += leftParen + d.vars + rightParen + mod
+		formula += leftParen + d.formula + rightParen + mod
 	} else {
-		format = "%s %% %s"
+		vars += d.vars + mod
+		formula += d.formula + mod
 	}
 
-	dec.vars = fmt.Sprintf(format, d.vars, d2.vars)
-	dec.formula = fmt.Sprintf(format, d.formula, d2.formula)
+	if d2.parens {
+		vars += leftParen + d2.vars + rightParen
+		formula += leftParen + d2.formula + rightParen
+	} else {
+		vars += d2.vars
+		formula += d2.formula
+	}
+
+	dec.vars = vars
+	dec.formula = formula
 
 	return dec
 }
@@ -513,19 +573,25 @@ func (d Decimal) Mod(d2 Decimal) Decimal {
 func (d Decimal) Pow(d2 Decimal) Decimal {
 	dec := Decimal{decimal: d.decimal.Pow(d2.decimal)}
 
-	var format string
-	if d.parens && d2.parens {
-		format = "(%s)^(%s)"
-	} else if d.parens {
-		format = "(%s)^%s"
-	} else if d2.parens {
-		format = "%s^(%s)"
+	var vars, formula string
+	if d.parens {
+		vars += leftParen + d.vars + rightParen + pow
+		formula += leftParen + d.formula + rightParen + pow
 	} else {
-		format = "%s^%s"
+		vars += d.vars + pow
+		formula += d.formula + pow
 	}
 
-	dec.vars = fmt.Sprintf(format, d.vars, d2.vars)
-	dec.formula = fmt.Sprintf(format, d.formula, d2.formula)
+	if d2.parens {
+		vars += leftParen + d2.vars + rightParen
+		formula += leftParen + d2.formula + rightParen
+	} else {
+		vars += d2.vars
+		formula += d2.formula
+	}
+
+	dec.vars = vars
+	dec.formula = formula
 
 	return dec
 }
@@ -710,10 +776,12 @@ func (d Decimal) StringFixedCash(interval uint8) string {
 // 	   NewFromFloat(545).Round(-1).String() // output: "550"
 //
 func (d Decimal) Round(places int32) Decimal {
+	p := strconv.Itoa(int(places))
+
 	return Decimal{
 		decimal: d.decimal.Round(places),
-		vars:    fmt.Sprintf("round(%d)(%s)", places, d.vars),
-		formula: fmt.Sprintf("round(%d)(%s)", places, d.formula),
+		vars:    round + leftParen + p + rightParen + leftParen + d.vars + rightParen,
+		formula: round + leftParen + p + rightParen + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -733,10 +801,12 @@ func (d Decimal) Round(places int32) Decimal {
 // 	   NewFromFloat(555).Round(-1).String() // output: "560"
 //
 func (d Decimal) RoundBank(places int32) Decimal {
+	p := strconv.Itoa(int(places))
+
 	return Decimal{
 		decimal: d.decimal.RoundBank(places),
-		vars:    fmt.Sprintf("roundBank(%d)(%s)", places, d.vars),
-		formula: fmt.Sprintf("roundBank(%d)(%s)", places, d.formula),
+		vars:    roundBank + leftParen + p + rightParen + leftParen + d.vars + rightParen,
+		formula: roundBank + leftParen + p + rightParen + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -751,10 +821,12 @@ func (d Decimal) RoundBank(places int32) Decimal {
 // 	  100: 100 cent rounding 3.50 => 4.00
 // For more details: https://en.wikipedia.org/wiki/Cash_rounding
 func (d Decimal) RoundCash(interval uint8) Decimal {
+	i := strconv.Itoa(int(interval))
+
 	return Decimal{
 		decimal: d.decimal.RoundCash(interval),
-		vars:    fmt.Sprintf("roundCash(%d)(%s)", interval, d.vars),
-		formula: fmt.Sprintf("roundCash(%d)(%s)", interval, d.formula),
+		vars:    roundCash + leftParen + i + rightParen + leftParen + d.vars + rightParen,
+		formula: roundCash + leftParen + i + rightParen + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -762,8 +834,8 @@ func (d Decimal) RoundCash(interval uint8) Decimal {
 func (d Decimal) Floor() Decimal {
 	return Decimal{
 		decimal: d.decimal.Floor(),
-		vars:    fmt.Sprintf("floor(%s)", d.vars),
-		formula: fmt.Sprintf("floor(%s)", d.formula),
+		vars:    floor + leftParen + d.vars + rightParen,
+		formula: floor + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -771,8 +843,8 @@ func (d Decimal) Floor() Decimal {
 func (d Decimal) Ceil() Decimal {
 	return Decimal{
 		decimal: d.decimal.Ceil(),
-		vars:    fmt.Sprintf("ceil(%s)", d.vars),
-		formula: fmt.Sprintf("ceil(%s)", d.formula),
+		vars:    ceil + leftParen + d.vars + rightParen,
+		formula: ceil + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -785,10 +857,12 @@ func (d Decimal) Ceil() Decimal {
 //     decimal.NewFromString("123.456").Truncate(2).String() // "123.45"
 //
 func (d Decimal) Truncate(precision int32) Decimal {
+	p := strconv.Itoa(int(precision))
+
 	return Decimal{
 		decimal: d.decimal.Truncate(precision),
-		vars:    fmt.Sprintf("truncate(%d)(%s)", precision, d.vars),
-		formula: fmt.Sprintf("truncate(%d)(%s)", precision, d.formula),
+		vars:    truncate + leftParen + p + rightParen + leftParen + d.vars + rightParen,
+		formula: truncate + leftParen + p + rightParen + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -894,8 +968,8 @@ func Min(first Decimal, rest ...Decimal) Decimal {
 
 	return Decimal{
 		decimal: decimal.Min(first.decimal, newRest...),
-		vars:    fmt.Sprintf("min(%s)", strings.Join(varsList, ", ")),
-		formula: fmt.Sprintf("min(%s)", strings.Join(formulaList, ", ")),
+		vars:    min + leftParen + strings.Join(varsList, comma) + rightParen,
+		formula: min + leftParen + strings.Join(formulaList, comma) + rightParen,
 	}
 }
 
@@ -921,8 +995,8 @@ func Max(first Decimal, rest ...Decimal) Decimal {
 
 	return Decimal{
 		decimal: decimal.Max(first.decimal, newRest...),
-		vars:    fmt.Sprintf("max(%s)", strings.Join(varsList, ", ")),
-		formula: fmt.Sprintf("max(%s)", strings.Join(formulaList, ", ")),
+		vars:    max + leftParen + strings.Join(varsList, comma) + rightParen,
+		formula: max + leftParen + strings.Join(formulaList, comma) + rightParen,
 	}
 }
 
@@ -942,8 +1016,8 @@ func Sum(first Decimal, rest ...Decimal) Decimal {
 
 	return Decimal{
 		decimal: decimal.Sum(first.decimal, newRest...),
-		vars:    fmt.Sprintf("sum(%s)", strings.Join(varsList, ", ")),
-		formula: fmt.Sprintf("sum(%s)", strings.Join(formulaList, ", ")),
+		vars:    sum + leftParen + strings.Join(varsList, comma) + rightParen,
+		formula: sum + leftParen + strings.Join(formulaList, comma) + rightParen,
 	}
 }
 
@@ -963,8 +1037,8 @@ func Avg(first Decimal, rest ...Decimal) Decimal {
 
 	return Decimal{
 		decimal: decimal.Avg(first.decimal, newRest...),
-		vars:    fmt.Sprintf("avg(%s)", strings.Join(varsList, ", ")),
-		formula: fmt.Sprintf("avg(%s)", strings.Join(formulaList, ", ")),
+		vars:    avg + leftParen + strings.Join(varsList, comma) + rightParen,
+		formula: avg + leftParen + strings.Join(formulaList, comma) + rightParen,
 	}
 }
 
@@ -1012,8 +1086,8 @@ func (d NullDecimal) MarshalJSON() ([]byte, error) {
 func (d Decimal) Atan() Decimal {
 	return Decimal{
 		decimal: d.decimal.Atan(),
-		vars:    fmt.Sprintf("atan(%s)", d.vars),
-		formula: fmt.Sprintf("atan(%s)", d.formula),
+		vars:    atan + leftParen + d.vars + rightParen,
+		formula: atan + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -1021,8 +1095,8 @@ func (d Decimal) Atan() Decimal {
 func (d Decimal) Sin() Decimal {
 	return Decimal{
 		decimal: d.decimal.Sin(),
-		vars:    fmt.Sprintf("sin(%s)", d.vars),
-		formula: fmt.Sprintf("sin(%s)", d.formula),
+		vars:    sin + leftParen + d.vars + rightParen,
+		formula: sin + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -1030,8 +1104,8 @@ func (d Decimal) Sin() Decimal {
 func (d Decimal) Cos() Decimal {
 	return Decimal{
 		decimal: d.decimal.Cos(),
-		vars:    fmt.Sprintf("cos(%s)", d.vars),
-		formula: fmt.Sprintf("cos(%s)", d.formula),
+		vars:    cos + leftParen + d.vars + rightParen,
+		formula: cos + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -1039,7 +1113,7 @@ func (d Decimal) Cos() Decimal {
 func (d Decimal) Tan() Decimal {
 	return Decimal{
 		decimal: d.decimal.Tan(),
-		vars:    fmt.Sprintf("tan(%s)", d.vars),
-		formula: fmt.Sprintf("tan(%s)", d.formula),
+		vars:    tan + leftParen + d.vars + rightParen,
+		formula: tan + leftParen + d.formula + rightParen,
 	}
 }
