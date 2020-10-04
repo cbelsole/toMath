@@ -6,7 +6,7 @@
 // The best way to create a new Decimal is to use decimal.NewFromStringWithName, ex:
 //
 //     n, err := decimal.NewFromStringWithName("var1", "1.3")
-//     n.String() // output: "3.1"
+//     n.String() // output: "1.3"
 //
 //     vars, formula := n.Add("var2", "1.8")
 //                       .SetName("var3")
