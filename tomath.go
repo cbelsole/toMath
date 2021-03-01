@@ -24,9 +24,7 @@
 package tomath
 
 import (
-	"database/sql/driver"
 	"math/big"
-	"strconv"
 	"strings"
 
 	"github.com/shopspring/decimal"
@@ -35,45 +33,114 @@ import (
 const (
 	leftParen  = "("
 	rightParen = ")"
-	abs        = "abs"
-	add        = " + "
-	sub        = " - "
-	neg        = "neg"
-	mul        = " * "
-	shift      = "shift"
-	div        = " / "
-	quoRem     = "quoRem"
-	divRound   = "divRound"
-	mod        = " % "
-	pow        = "^"
-	round      = "round"
-	roundBank  = "roundBank"
-	roundCash  = "roundCash"
-	floor      = "floor"
-	ceil       = "ceil"
-	truncate   = "truncate"
-	min        = "min"
-	comma      = ", "
-	max        = "max"
-	sum        = "sum"
-	avg        = "avg"
-	atan       = "atan"
-	sin        = "sin"
-	cos        = "cos"
-	tan        = "tan"
-	equal      = " = "
+
+	// 	abs        = "abs"
+	// 	add        = " + "
+	// 	sub        = " - "
+	// 	neg        = "neg"
+	// 	mul        = " * "
+	// 	shift      = "shift"
+	// 	div        = " / "
+	// 	quoRem     = "quoRem"
+	// 	divRound   = "divRound"
+	// 	mod        = " % "
+	// 	pow        = "^"
+	// 	round      = "round"
+	// 	roundBank  = "roundBank"
+	// 	roundCash  = "roundCash"
+	// 	floor      = "floor"
+	// 	ceil       = "ceil"
+	// 	truncate   = "truncate"
+	// 	min        = "min"
+	// 	comma      = ", "
+	// 	max        = "max"
+	// 	sum        = "sum"
+	// 	avg        = "avg"
+	// 	atan       = "atan"
+	// 	sin        = "sin"
+	// 	cos        = "cos"
+	// 	tan        = "tan"
+	equal = " = "
 )
+
+var symbols = map[byte]string{
+	abs:       "abs",
+	neg:       "neg",
+	round:     "round",
+	roundBank: "roundBank",
+	roundCash: "roundCash",
+	floor:     "floor",
+	ceil:      "ceil",
+	truncate:  "truncate",
+	atan:      "atan",
+	sin:       "sin",
+	cos:       "cos",
+	tan:       "tan",
+	add:       " + ", // second the binary operations
+	sub:       " - ",
+	mul:       " * ",
+	div:       " / ",
+	shift:     "shift",
+	quoRem:    "quoRem",
+	divRound:  "divRound",
+	mod:       " % ",
+	pow:       "^",
+	min:       "min", //finally the operations that can take many operands
+	max:       "max",
+	sum:       "sum",
+	avg:       "avg",
+}
+
+const (
+	abs byte = iota // first the unary operations
+	neg
+	round
+	roundBank
+	roundCash
+	floor
+	ceil
+	truncate
+	atan
+	sin
+	cos
+	tan
+	add // second the binary operations
+	sub
+	mul
+	div
+	shift
+	quoRem
+	divRound
+	mod
+	pow
+	min //finally the operations that can take many operands
+	max
+	sum
+	avg
+)
+
+func isUnary(b byte) bool {
+	return b < add
+}
+
+func isBinary(b byte) bool {
+	return b < min
+}
+
+func isVariatic(b byte) bool {
+	return b < min
+}
 
 type (
 	// Decimal represents a fixed-point decimal. It is immutable.
-	// number = value * 10 ^ exp
-	Decimal struct {
-		parens  bool
-		name    string
-		decimal decimal.Decimal
-		vars    string
-		formula string
-	}
+	// // number = value * 10 ^ exp
+	// Decimal struct {
+	// 	parens  bool
+	// 	name    string
+	// 	decimal decimal.Decimal
+	// 	vars    string
+	// 	formula string
+	// }
 
 	// NullDecimal represents a nullable decimal with compatibility for
 	// scanning null values from the database.
@@ -81,82 +148,151 @@ type (
 		name    string
 		decimal decimal.NullDecimal
 	}
-)
 
-var (
-	Zero = Decimal{
-		decimal: decimal.Zero,
-		name:    "zero",
-		vars:    "zero",
-		formula: "0",
+	// Potentially store strings in string table to cut out duplicates
+	// parens can be bit shiftend if you know how many uniary operators have gone by
+	Decimal struct {
+		ops       []byte            // the operation decides what of the others is to be used
+		parens    []bool            // not needed for unary operations
+		names     []string          // not needed for unary operations
+		decimals  []decimal.Decimal // not needed for unary operations
+		valCounts []uint8           // only needed for operations that can take many operands
 	}
 )
+
+var Zero = Decimal{decimals: []decimal.Decimal{decimal.Zero}, names: []string{"zero"}}
 
 // SetName sets the name of the Decimal
-func (d Decimal) SetName(name string) Decimal {
-	d.name = name
-	if d.vars == "" {
-		d.vars = name
-	}
-	return d
-}
+// func (d Decimal) SetName(name string) Decimal {
+// 	d.name = name
+// 	if d.vars == "" {
+// 		d.vars = name
+// 	}
+// 	return d
+// }
 
-// SetName gets the name of the Decimal
-func (d Decimal) GetName() string {
-	return d.name
-}
+// // SetName gets the name of the Decimal
+// func (d Decimal) GetName() string {
+// 	return d.name
+// }
 
-// Resolve removes the underlying math from the decimal and replaces it with the
-// current name and value.
-func (d Decimal) Resolve() Decimal {
-	return Decimal{
-		name:    d.name,
-		vars:    d.name,
-		formula: d.String(),
-		decimal: d.decimal,
-	}
-}
+// // Resolve removes the underlying math from the decimal and replaces it with the
+// // current name and value.
+// func (d Decimal) Resolve() Decimal {
+// 	return Decimal{
+// 		name:    d.name,
+// 		vars:    d.name,
+// 		formula: d.String(),
+// 		decimal: d.decimal,
+// 	}
+// }
 
 // ResolveTo is a wrapper around SetName() and Resolve().
-func (d Decimal) ResolveTo(name string) Decimal {
-	return d.SetName(name).Resolve()
-}
+// func (d Decimal) ResolveTo(name string) Decimal {
+// 	return d.SetName(name).Resolve()
+// }
 
-// Decimal ejects the github.com/shopspring/decimal#Decimal
-func (d Decimal) Decimal() decimal.Decimal {
-	return d.decimal
-}
+// // Decimal ejects the github.com/shopspring/decimal#Decimal
+// func (d Decimal) Decimal() decimal.Decimal {
+// 	return d.decimal
+// }
 
 // Math returns two strings representing the formula underlying the decimal. The
 // first uses the decimal names. The second uses the decimal values. Both are
 // follwed by an equals sign with the current name and value respectively.
 func (d Decimal) Math() (string, string) {
-	if d.name == "" {
-		d.name = "?"
+	if len(d.names) == 0 {
+		d.names = []string{"?"}
 	}
 
-	if d.vars == "" {
-		d.vars = "?"
+	if len(d.decimals) == 0 {
+		d.decimals = []decimal.Decimal{decimal.Zero}
 	}
 
-	if d.formula == "" {
-		d.formula = d.String()
+	if len(d.ops) == 0 {
+		val := d.decimals[0].String()
+		return d.names[0] + equal + d.names[0], val + equal + val
 	}
 
-	return d.vars + equal + d.name,
-		d.formula + equal + d.String()
+	var vars, formula strings.Builder
+
+	// if d.formula == "" {
+	// 	d.formula = d.String()
+	// }
+
+	// return d.vars + " = " + d.name,
+	// 	d.formula + " = " + d.String()
+
+	var curDecimal, curName int
+	for _, op := range d.ops {
+		if isUnary(op) {
+			vars.WriteString(symbols[op])
+			vars.WriteString(leftParen)
+			vars.WriteString(d.names[curName])
+			vars.WriteString(rightParen)
+
+			formula.WriteString(symbols[op])
+			formula.WriteString(leftParen)
+			formula.WriteString(d.decimals[curDecimal].String())
+			formula.WriteString(rightParen)
+
+			curDecimal++
+			curName++
+		} else if isBinary(op) {
+			if vars.Len() == 0 {
+				vars.WriteString(d.names[curName])
+				formula.WriteString(d.decimals[curDecimal].String())
+				curDecimal++
+				curName++
+			}
+
+			vars.WriteString(symbols[op])
+			vars.WriteString(d.names[curName])
+
+			formula.WriteString(symbols[op])
+			formula.WriteString(d.decimals[curDecimal].String())
+
+			curDecimal++
+			curName++
+		} else {
+
+		}
+	}
+
+	if vars.Len() == 0 {
+		vars.WriteString(d.names[0])
+		formula.WriteString(d.decimals[0].String())
+	}
+
+	// if there were no ops on the decimal
+	if len(d.decimals) != len(d.names) {
+		vars.WriteString(equal)
+		vars.WriteRune('?')
+
+		formula.WriteString(equal)
+		formula.WriteString(d.decimals[len(d.decimals)-1].String())
+	} else {
+		vars.WriteString(equal)
+		vars.WriteString(d.names[len(d.names)-1])
+
+		formula.WriteString(equal)
+		formula.WriteString(d.decimals[len(d.decimals)-1].String())
+	}
+
+	return vars.String(), formula.String()
 }
 
 // New returns a new fixed-point decimal, value * 10 ^ exp.
 func New(value int64, exp int32) Decimal {
-	d := decimal.New(value, exp)
-	return Decimal{decimal: d, formula: d.String()}
+	return Decimal{decimals: []decimal.Decimal{decimal.New(value, exp)}}
 }
 
 // NewWithName returns a new fixed-point decimal, value * 10 ^ exp with a given name.
 func NewWithName(name string, value int64, exp int32) Decimal {
-	d := decimal.New(value, exp)
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{decimal.New(value, exp)},
+	}
 }
 
 // NewFromInt converts a int64 to Decimal.
@@ -166,8 +302,7 @@ func NewWithName(name string, value int64, exp int32) Decimal {
 //     NewFromInt(123).String() // output: "123"
 //     NewFromInt(-10).String() // output: "-10"
 func NewFromInt(value int64) Decimal {
-	d := decimal.NewFromInt(value)
-	return Decimal{decimal: d, formula: d.String()}
+	return Decimal{decimals: []decimal.Decimal{decimal.NewFromInt(value)}}
 }
 
 // NewFromIntWithName converts a int64 to Decimal with a given name.
@@ -177,8 +312,10 @@ func NewFromInt(value int64) Decimal {
 //     NewFromIntWithName("var1", 123).String() // output: "123"
 //     NewFromIntWithName("var1", -10).String() // output: "-10"
 func NewFromIntWithName(name string, value int64) Decimal {
-	d := decimal.NewFromInt(value)
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{decimal.NewFromInt(value)},
+	}
 }
 
 // NewFromInt32 converts a int32 to Decimal.
@@ -188,8 +325,7 @@ func NewFromIntWithName(name string, value int64) Decimal {
 //     NewFromInt(123).String() // output: "123"
 //     NewFromInt(-10).String() // output: "-10"
 func NewFromInt32(value int32) Decimal {
-	d := decimal.NewFromInt32(value)
-	return Decimal{decimal: d, formula: d.String()}
+	return Decimal{decimals: []decimal.Decimal{decimal.NewFromInt32(value)}}
 }
 
 // NewFromInt32WithName converts a int32 to Decimal with a given name.
@@ -199,21 +335,24 @@ func NewFromInt32(value int32) Decimal {
 //     NewFromInt32WithName("var1", 123).String() // output: "123"
 //     NewFromInt32WithName("var1", -10).String() // output: "-10"
 func NewFromInt32WithName(name string, value int32) Decimal {
-	d := decimal.NewFromInt32(value)
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{decimal.NewFromInt32(value)},
+	}
 }
 
 // NewFromBigInt returns a new Decimal from a big.Int, value * 10 ^ exp
 func NewFromBigInt(value *big.Int, exp int32) Decimal {
-	d := decimal.NewFromBigInt(value, exp)
-	return Decimal{decimal: d, formula: d.String()}
+	return Decimal{decimals: []decimal.Decimal{decimal.NewFromBigInt(value, exp)}}
 }
 
 // NewFromBigIntWithName returns a new Decimal from a big.Int, value * 10 ^ exp
 // with a given name
 func NewFromBigIntWithName(name string, value *big.Int, exp int32) Decimal {
-	d := decimal.NewFromBigInt(value, exp)
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{decimal.NewFromBigInt(value, exp)},
+	}
 }
 
 // NewFromString returns a new Decimal from a string representation.
@@ -231,7 +370,7 @@ func NewFromString(value string) (Decimal, error) {
 		return Decimal{}, err
 	}
 
-	return Decimal{decimal: d, formula: d.String()}, nil
+	return Decimal{decimals: []decimal.Decimal{d}}, nil
 }
 
 // NewFromStringWithName returns a new Decimal from a string representation with
@@ -249,7 +388,10 @@ func NewFromStringWithName(name string, value string) (Decimal, error) {
 		return Decimal{}, err
 	}
 
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}, nil
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{d},
+	}, nil
 }
 
 // RequireFromString returns a new Decimal from a string representation
@@ -261,8 +403,7 @@ func NewFromStringWithName(name string, value string) (Decimal, error) {
 //     d2 := RequireFromString(".0001")
 //
 func RequireFromString(value string) Decimal {
-	d := decimal.RequireFromString(value)
-	return Decimal{decimal: d, formula: d.String()}
+	return Decimal{decimals: []decimal.Decimal{decimal.RequireFromString(value)}}
 }
 
 // RequireFromStringWithName returns a new Decimal from a string representation
@@ -274,8 +415,10 @@ func RequireFromString(value string) Decimal {
 //     d2 := RequireFromStringWithName("var1", ".0001")
 //
 func RequireFromStringWithName(name string, value string) Decimal {
-	d := decimal.RequireFromString(value)
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{decimal.RequireFromString(value)},
+	}
 }
 
 // NewFromFloat converts a float64 to Decimal.
@@ -289,8 +432,7 @@ func RequireFromStringWithName(name string, value string) Decimal {
 //
 // NOTE: this will panic on NaN, +/-inf
 func NewFromFloat(value float64) Decimal {
-	d := decimal.NewFromFloat(value)
-	return Decimal{decimal: d, formula: d.String()}
+	return Decimal{decimals: []decimal.Decimal{decimal.NewFromFloat(value)}}
 }
 
 // NewFromFloatWithName converts a float64 to Decimal with a given name.
@@ -304,8 +446,10 @@ func NewFromFloat(value float64) Decimal {
 //
 // NOTE: this will panic on NaN, +/-inf
 func NewFromFloatWithName(name string, value float64) Decimal {
-	d := decimal.NewFromFloat(value)
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{decimal.NewFromFloat(value)},
+	}
 }
 
 // NewFromFloat32 converts a float32 to Decimal.
@@ -319,8 +463,7 @@ func NewFromFloatWithName(name string, value float64) Decimal {
 //
 // NOTE: this will panic on NaN, +/-inf
 func NewFromFloat32(value float32) Decimal {
-	d := decimal.NewFromFloat32(value)
-	return Decimal{decimal: d, formula: d.String()}
+	return Decimal{decimals: []decimal.Decimal{decimal.NewFromFloat32(value)}}
 }
 
 // NewFromFloat32WithName converts a float32 to Decimal with a given name.
@@ -334,8 +477,10 @@ func NewFromFloat32(value float32) Decimal {
 //
 // NOTE: this will panic on NaN, +/-inf
 func NewFromFloat32WithName(name string, value float32) Decimal {
-	d := decimal.NewFromFloat32(value)
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{decimal.NewFromFloat32(value)},
+	}
 }
 
 // NewFromFloatWithExponent converts a float64 to Decimal, with an arbitrary
@@ -346,8 +491,7 @@ func NewFromFloat32WithName(name string, value float32) Decimal {
 //     NewFromFloatWithExponent(123.456, -2).String() // output: "123.46"
 //
 func NewFromFloatWithExponent(value float64, exp int32) Decimal {
-	d := decimal.NewFromFloatWithExponent(value, exp)
-	return Decimal{decimal: d, formula: d.String()}
+	return Decimal{decimals: []decimal.Decimal{decimal.NewFromFloatWithExponent(value, exp)}}
 }
 
 // NewFromFloatWithExponentWithName converts a float64 to Decimal with a given name, with an arbitrary
@@ -358,358 +502,366 @@ func NewFromFloatWithExponent(value float64, exp int32) Decimal {
 //     NewFromFloatWithExponentWithName("var1", 123.456, -2).String() // output: "123.46"
 //
 func NewFromFloatWithExponentWithName(name string, value float64, exp int32) Decimal {
-	d := decimal.NewFromFloatWithExponent(value, exp)
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{decimal.NewFromFloatWithExponent(value, exp)},
+	}
 }
 
 // NewFromDecimal returns a new Decimal from github.com/shopspring/decimal#Decimal.
 func NewFromDecimal(d decimal.Decimal) Decimal {
-	return Decimal{decimal: d, formula: d.String()}
+	return Decimal{decimals: []decimal.Decimal{d}}
 }
 
 // NewFromDecimalWithName returns a new Decimal from github.com/shopspring/decimal#Decimal
 // with a given name.
 func NewFromDecimalWithName(name string, d decimal.Decimal) Decimal {
-	return Decimal{name: name, decimal: d, vars: name, formula: d.String()}
+	return Decimal{
+		names:    []string{name},
+		decimals: []decimal.Decimal{d},
+	}
 }
 
 // Abs returns the absolute value of the decimal.
 func (d Decimal) Abs() Decimal {
 	return Decimal{
-		decimal: d.decimal.Abs(),
-		vars:    abs + leftParen + d.vars + rightParen,
-		formula: abs + leftParen + d.formula + rightParen,
+		ops:      append(d.ops, abs),
+		decimals: append(d.decimals, d.decimals[len(d.decimals)-1].Abs()),
+		names:    d.names,
+		// decimal: d.decimal.Abs(),
+		// vars:    abs + leftParen + d.vars + rightParen,
+		// formula: abs + leftParen + d.formula + rightParen,
 	}
 }
 
 // Add returns d + d2.
 func (d Decimal) Add(d2 Decimal) Decimal {
 	return Decimal{
-		decimal: d.decimal.Add(d2.decimal),
-		vars:    d.vars + add + d2.vars,
-		formula: d.formula + add + d2.formula,
-		parens:  true,
+		ops:      append(append(d.ops, d2.ops...), add),
+		decimals: append(append(d.decimals[:len(d.decimals)], d2.decimals[:len(d2.decimals)]...), d.decimals[len(d.decimals)-1].Add(d2.decimals[len(d2.decimals)-1])),
+		names:    append(d.names, d2.names...),
+		parens:   append(d.parens, true),
 	}
 }
 
-// Sub returns d - d2.
-func (d Decimal) Sub(d2 Decimal) Decimal {
-	return Decimal{
-		decimal: d.decimal.Sub(d2.decimal),
-		vars:    d.vars + sub + d2.vars,
-		formula: d.formula + sub + d2.formula,
-		parens:  true,
-	}
-}
+// // Sub returns d - d2.
+// func (d Decimal) Sub(d2 Decimal) Decimal {
+// 	return Decimal{
+// 		decimal: d.decimal.Sub(d2.decimal),
+// 		vars:    d.vars + sub + d2.vars,
+// 		formula: d.formula + sub + d2.formula,
+// 		parens:  true,
+// 	}
+// }
 
-// Neg returns -d.
-func (d Decimal) Neg() Decimal {
-	return Decimal{
-		decimal: d.decimal.Neg(),
-		vars:    neg + leftParen + d.vars + rightParen,
-		formula: neg + leftParen + d.formula + rightParen,
-	}
-}
+// // Neg returns -d.
+// func (d Decimal) Neg() Decimal {
+// 	return Decimal{
+// 		decimal: d.decimal.Neg(),
+// 		vars:    neg + leftParen + d.vars + rightParen,
+// 		formula: neg + leftParen + d.formula + rightParen,
+// 	}
+// }
 
-// Mul returns d * d2.
-func (d Decimal) Mul(d2 Decimal) Decimal {
-	dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
-	var vars, formula string
+// // Mul returns d * d2.
+// func (d Decimal) Mul(d2 Decimal) Decimal {
+// 	dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
+// 	var vars, formula string
 
-	if d.parens {
-		vars += leftParen + d.vars + rightParen + mul
-		formula += leftParen + d.formula + rightParen + mul
-	} else {
-		vars += d.vars + mul
-		formula += d.formula + mul
-	}
+// 	if d.parens {
+// 		vars += leftParen + d.vars + rightParen + mul
+// 		formula += leftParen + d.formula + rightParen + mul
+// 	} else {
+// 		vars += d.vars + mul
+// 		formula += d.formula + mul
+// 	}
 
-	if d2.parens {
-		vars += leftParen + d2.vars + rightParen
-		formula += leftParen + d2.formula + rightParen
-	} else {
-		vars += d2.vars
-		formula += d2.formula
-	}
+// 	if d2.parens {
+// 		vars += leftParen + d2.vars + rightParen
+// 		formula += leftParen + d2.formula + rightParen
+// 	} else {
+// 		vars += d2.vars
+// 		formula += d2.formula
+// 	}
 
-	dec.vars = vars
-	dec.formula = formula
+// 	dec.vars = vars
+// 	dec.formula = formula
 
-	return dec
-}
+// 	return dec
+// }
 
-// Shift shifts the decimal in base 10.
-// It shifts left when shift is positive and right if shift is negative.
-// In simpler terms, the given value for shift is added to the exponent
-// of the decimal.
-func (d Decimal) Shift(s int32) Decimal {
-	places := strconv.Itoa(int(s))
-	return Decimal{
-		decimal: d.decimal.Shift(s),
-		vars:    shift + leftParen + places + rightParen + leftParen + d.vars + rightParen,
-		formula: shift + leftParen + places + rightParen + leftParen + d.formula + rightParen,
-	}
-}
+// // Shift shifts the decimal in base 10.
+// // It shifts left when shift is positive and right if shift is negative.
+// // In simpler terms, the given value for shift is added to the exponent
+// // of the decimal.
+// func (d Decimal) Shift(s int32) Decimal {
+// 	places := strconv.Itoa(int(s))
+// 	return Decimal{
+// 		decimal: d.decimal.Shift(s),
+// 		vars:    shift + leftParen + places + rightParen + leftParen + d.vars + rightParen,
+// 		formula: shift + leftParen + places + rightParen + leftParen + d.formula + rightParen,
+// 	}
+// }
 
-// Div returns d / d2. If it doesn't divide exactly, the result will have
-// DivisionPrecision digits after the decimal point.
-func (d Decimal) Div(d2 Decimal) Decimal {
-	dec := Decimal{decimal: d.decimal.Div(d2.decimal)}
+// // Div returns d / d2. If it doesn't divide exactly, the result will have
+// // DivisionPrecision digits after the decimal point.
+// func (d Decimal) Div(d2 Decimal) Decimal {
+// 	dec := Decimal{decimal: d.decimal.Div(d2.decimal)}
 
-	var vars, formula string
-	if d.parens {
-		vars += leftParen + d.vars + rightParen + div
-		formula += leftParen + d.formula + rightParen + div
-	} else {
-		vars += d.vars + div
-		formula += d.formula + div
-	}
+// 	var vars, formula string
+// 	if d.parens {
+// 		vars += leftParen + d.vars + rightParen + div
+// 		formula += leftParen + d.formula + rightParen + div
+// 	} else {
+// 		vars += d.vars + div
+// 		formula += d.formula + div
+// 	}
 
-	if d2.parens {
-		vars += leftParen + d2.vars + rightParen
-		formula += leftParen + d2.formula + rightParen
-	} else {
-		vars += d2.vars
-		formula += d2.formula
-	}
+// 	if d2.parens {
+// 		vars += leftParen + d2.vars + rightParen
+// 		formula += leftParen + d2.formula + rightParen
+// 	} else {
+// 		vars += d2.vars
+// 		formula += d2.formula
+// 	}
 
-	dec.vars = vars
-	dec.formula = formula
+// 	dec.vars = vars
+// 	dec.formula = formula
 
-	return dec
-}
+// 	return dec
+// }
 
-// QuoRem does divsion with remainder
-// d.QuoRem(d2,precision) returns quotient q and remainder r such that
-//   d = d2 * q + r, q an integer multiple of 10^(-precision)
-//   0 <= r < abs(d2) * 10 ^(-precision) if d>=0
-//   0 >= r > -abs(d2) * 10 ^(-precision) if d<0
-// Note that precision<0 is allowed as input.
-func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
-	d3, d4 := d.decimal.QuoRem(d2.decimal, precision)
-	p := strconv.Itoa(int(precision))
+// // QuoRem does divsion with remainder
+// // d.QuoRem(d2,precision) returns quotient q and remainder r such that
+// //   d = d2 * q + r, q an integer multiple of 10^(-precision)
+// //   0 <= r < abs(d2) * 10 ^(-precision) if d>=0
+// //   0 >= r > -abs(d2) * 10 ^(-precision) if d<0
+// // Note that precision<0 is allowed as input.
+// func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
+// 	d3, d4 := d.decimal.QuoRem(d2.decimal, precision)
+// 	p := strconv.Itoa(int(precision))
 
-	var vars, formula string
-	if d.parens {
-		vars += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.vars + rightParen + div
-		formula += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.formula + rightParen + div
-	} else {
-		vars += quoRem + leftParen + p + rightParen + leftParen + d.vars + div
-		formula += quoRem + leftParen + p + rightParen + leftParen + d.formula + div
-	}
+// 	var vars, formula string
+// 	if d.parens {
+// 		vars += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.vars + rightParen + div
+// 		formula += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.formula + rightParen + div
+// 	} else {
+// 		vars += quoRem + leftParen + p + rightParen + leftParen + d.vars + div
+// 		formula += quoRem + leftParen + p + rightParen + leftParen + d.formula + div
+// 	}
 
-	if d2.parens {
-		vars += leftParen + d2.vars + rightParen + rightParen
-		formula += leftParen + d2.formula + rightParen + rightParen
-	} else {
-		vars += d2.vars + rightParen
-		formula += d2.formula + rightParen
-	}
+// 	if d2.parens {
+// 		vars += leftParen + d2.vars + rightParen + rightParen
+// 		formula += leftParen + d2.formula + rightParen + rightParen
+// 	} else {
+// 		vars += d2.vars + rightParen
+// 		formula += d2.formula + rightParen
+// 	}
 
-	return Decimal{name: d.name + d2.name + "Quotient", decimal: d3, vars: vars, formula: formula},
-		Decimal{name: d.name + d2.name + "Remainder", decimal: d4, vars: vars, formula: formula}
-}
+// 	return Decimal{name: d.name + d2.name + "Quotient", decimal: d3, vars: vars, formula: formula},
+// 		Decimal{name: d.name + d2.name + "Remainder", decimal: d4, vars: vars, formula: formula}
+// }
 
-// DivRound divides and rounds to a given precision
-// i.e. to an integer multiple of 10^(-precision)
-//   for a positive quotient digit 5 is rounded up, away from 0
-//   if the quotient is negative then digit 5 is rounded down, away from 0
-// Note that precision<0 is allowed as input.
-func (d Decimal) DivRound(d2 Decimal, precision int32) Decimal {
-	dec := Decimal{decimal: d.decimal.DivRound(d2.decimal, precision)}
-	p := strconv.Itoa(int(precision))
+// // DivRound divides and rounds to a given precision
+// // i.e. to an integer multiple of 10^(-precision)
+// //   for a positive quotient digit 5 is rounded up, away from 0
+// //   if the quotient is negative then digit 5 is rounded down, away from 0
+// // Note that precision<0 is allowed as input.
+// func (d Decimal) DivRound(d2 Decimal, precision int32) Decimal {
+// 	dec := Decimal{decimal: d.decimal.DivRound(d2.decimal, precision)}
+// 	p := strconv.Itoa(int(precision))
 
-	var vars, formula string
-	if d.parens {
-		vars += divRound + leftParen + p + rightParen + leftParen + leftParen + d.vars + rightParen + div
-		formula += divRound + leftParen + p + rightParen + leftParen + leftParen + d.formula + rightParen + div
-	} else {
-		vars += divRound + leftParen + p + rightParen + leftParen + d.vars + div
-		formula += divRound + leftParen + p + rightParen + leftParen + d.formula + div
-	}
+// 	var vars, formula string
+// 	if d.parens {
+// 		vars += divRound + leftParen + p + rightParen + leftParen + leftParen + d.vars + rightParen + div
+// 		formula += divRound + leftParen + p + rightParen + leftParen + leftParen + d.formula + rightParen + div
+// 	} else {
+// 		vars += divRound + leftParen + p + rightParen + leftParen + d.vars + div
+// 		formula += divRound + leftParen + p + rightParen + leftParen + d.formula + div
+// 	}
 
-	if d2.parens {
-		vars += leftParen + d2.vars + rightParen + rightParen
-		formula += leftParen + d2.formula + rightParen + rightParen
-	} else {
-		vars += d2.vars + rightParen
-		formula += d2.formula + rightParen
-	}
+// 	if d2.parens {
+// 		vars += leftParen + d2.vars + rightParen + rightParen
+// 		formula += leftParen + d2.formula + rightParen + rightParen
+// 	} else {
+// 		vars += d2.vars + rightParen
+// 		formula += d2.formula + rightParen
+// 	}
 
-	dec.vars = vars
-	dec.formula = formula
+// 	dec.vars = vars
+// 	dec.formula = formula
 
-	return dec
-}
+// 	return dec
+// }
 
-// Mod returns d % d2.
-func (d Decimal) Mod(d2 Decimal) Decimal {
-	dec := Decimal{decimal: d.decimal.Mod(d2.decimal)}
+// // Mod returns d % d2.
+// func (d Decimal) Mod(d2 Decimal) Decimal {
+// 	dec := Decimal{decimal: d.decimal.Mod(d2.decimal)}
 
-	var vars, formula string
-	if d.parens {
-		vars += leftParen + d.vars + rightParen + mod
-		formula += leftParen + d.formula + rightParen + mod
-	} else {
-		vars += d.vars + mod
-		formula += d.formula + mod
-	}
+// 	var vars, formula string
+// 	if d.parens {
+// 		vars += leftParen + d.vars + rightParen + mod
+// 		formula += leftParen + d.formula + rightParen + mod
+// 	} else {
+// 		vars += d.vars + mod
+// 		formula += d.formula + mod
+// 	}
 
-	if d2.parens {
-		vars += leftParen + d2.vars + rightParen
-		formula += leftParen + d2.formula + rightParen
-	} else {
-		vars += d2.vars
-		formula += d2.formula
-	}
+// 	if d2.parens {
+// 		vars += leftParen + d2.vars + rightParen
+// 		formula += leftParen + d2.formula + rightParen
+// 	} else {
+// 		vars += d2.vars
+// 		formula += d2.formula
+// 	}
 
-	dec.vars = vars
-	dec.formula = formula
+// 	dec.vars = vars
+// 	dec.formula = formula
 
-	return dec
-}
+// 	return dec
+// }
 
-// Pow returns d to the power d2
-func (d Decimal) Pow(d2 Decimal) Decimal {
-	dec := Decimal{decimal: d.decimal.Pow(d2.decimal)}
+// // Pow returns d to the power d2
+// func (d Decimal) Pow(d2 Decimal) Decimal {
+// 	dec := Decimal{decimal: d.decimal.Pow(d2.decimal)}
 
-	var vars, formula string
-	if d.parens {
-		vars += leftParen + d.vars + rightParen + pow
-		formula += leftParen + d.formula + rightParen + pow
-	} else {
-		vars += d.vars + pow
-		formula += d.formula + pow
-	}
+// 	var vars, formula string
+// 	if d.parens {
+// 		vars += leftParen + d.vars + rightParen + pow
+// 		formula += leftParen + d.formula + rightParen + pow
+// 	} else {
+// 		vars += d.vars + pow
+// 		formula += d.formula + pow
+// 	}
 
-	if d2.parens {
-		vars += leftParen + d2.vars + rightParen
-		formula += leftParen + d2.formula + rightParen
-	} else {
-		vars += d2.vars
-		formula += d2.formula
-	}
+// 	if d2.parens {
+// 		vars += leftParen + d2.vars + rightParen
+// 		formula += leftParen + d2.formula + rightParen
+// 	} else {
+// 		vars += d2.vars
+// 		formula += d2.formula
+// 	}
 
-	dec.vars = vars
-	dec.formula = formula
+// 	dec.vars = vars
+// 	dec.formula = formula
 
-	return dec
-}
+// 	return dec
+// }
 
-// Cmp compares the numbers represented by d and d2 and returns:
-//
-//     -1 if d <  d2
-//      0 if d == d2
-//     +1 if d >  d2
-//
-func (d Decimal) Cmp(d2 Decimal) int {
-	return d.decimal.Cmp(d2.decimal)
-}
+// // Cmp compares the numbers represented by d and d2 and returns:
+// //
+// //     -1 if d <  d2
+// //      0 if d == d2
+// //     +1 if d >  d2
+// //
+// func (d Decimal) Cmp(d2 Decimal) int {
+// 	return d.decimal.Cmp(d2.decimal)
+// }
 
-// Equal returns whether the numbers represented by d and d2 are equal.
-func (d Decimal) Equal(d2 Decimal) bool {
-	return d.decimal.Equal(d2.decimal)
-}
+// // Equal returns whether the numbers represented by d and d2 are equal.
+// func (d Decimal) Equal(d2 Decimal) bool {
+// 	return d.decimal.Equal(d2.decimal)
+// }
 
-// Equals is deprecated, please use Equal method instead
-func (d Decimal) Equals(d2 Decimal) bool {
-	return d.decimal.Equals(d2.decimal)
-}
+// // Equals is deprecated, please use Equal method instead
+// func (d Decimal) Equals(d2 Decimal) bool {
+// 	return d.decimal.Equals(d2.decimal)
+// }
 
-// GreaterThan (GT) returns true when d is greater than d2.
-func (d Decimal) GreaterThan(d2 Decimal) bool {
-	return d.decimal.GreaterThan(d2.decimal)
-}
+// // GreaterThan (GT) returns true when d is greater than d2.
+// func (d Decimal) GreaterThan(d2 Decimal) bool {
+// 	return d.decimal.GreaterThan(d2.decimal)
+// }
 
-// GreaterThanOrEqual (GTE) returns true when d is greater than or equal to d2.
-func (d Decimal) GreaterThanOrEqual(d2 Decimal) bool {
-	return d.decimal.GreaterThanOrEqual(d2.decimal)
-}
+// // GreaterThanOrEqual (GTE) returns true when d is greater than or equal to d2.
+// func (d Decimal) GreaterThanOrEqual(d2 Decimal) bool {
+// 	return d.decimal.GreaterThanOrEqual(d2.decimal)
+// }
 
-// LessThan (LT) returns true when d is less than d2.
-func (d Decimal) LessThan(d2 Decimal) bool {
-	return d.decimal.LessThan(d2.decimal)
-}
+// // LessThan (LT) returns true when d is less than d2.
+// func (d Decimal) LessThan(d2 Decimal) bool {
+// 	return d.decimal.LessThan(d2.decimal)
+// }
 
-// LessThanOrEqual (LTE) returns true when d is less than or equal to d2.
-func (d Decimal) LessThanOrEqual(d2 Decimal) bool {
-	return d.decimal.LessThanOrEqual(d2.decimal)
-}
+// // LessThanOrEqual (LTE) returns true when d is less than or equal to d2.
+// func (d Decimal) LessThanOrEqual(d2 Decimal) bool {
+// 	return d.decimal.LessThanOrEqual(d2.decimal)
+// }
 
-// Sign returns:
-//
-//	-1 if d <  0
-//	 0 if d == 0
-//	+1 if d >  0
-//
-func (d Decimal) Sign() int {
-	return d.decimal.Sign()
-}
+// // Sign returns:
+// //
+// //	-1 if d <  0
+// //	 0 if d == 0
+// //	+1 if d >  0
+// //
+// func (d Decimal) Sign() int {
+// 	return d.decimal.Sign()
+// }
 
-// IsPositive return
-//
-//	true if d > 0
-//	false if d == 0
-//	false if d < 0
-func (d Decimal) IsPositive() bool {
-	return d.decimal.IsPositive()
-}
+// // IsPositive return
+// //
+// //	true if d > 0
+// //	false if d == 0
+// //	false if d < 0
+// func (d Decimal) IsPositive() bool {
+// 	return d.decimal.IsPositive()
+// }
 
-// IsNegative return
-//
-//	true if d < 0
-//	false if d == 0
-//	false if d > 0
-func (d Decimal) IsNegative() bool {
-	return d.decimal.IsNegative()
-}
+// // IsNegative return
+// //
+// //	true if d < 0
+// //	false if d == 0
+// //	false if d > 0
+// func (d Decimal) IsNegative() bool {
+// 	return d.decimal.IsNegative()
+// }
 
-// IsZero return
-//
-//	true if d == 0
-//	false if d > 0
-//	false if d < 0
-func (d Decimal) IsZero() bool {
-	return d.decimal.IsZero()
-}
+// // IsZero return
+// //
+// //	true if d == 0
+// //	false if d > 0
+// //	false if d < 0
+// func (d Decimal) IsZero() bool {
+// 	return d.decimal.IsZero()
+// }
 
-// Exponent returns the exponent, or scale component of the decimal.
-func (d Decimal) Exponent() int32 {
-	return d.decimal.Exponent()
-}
+// // Exponent returns the exponent, or scale component of the decimal.
+// func (d Decimal) Exponent() int32 {
+// 	return d.decimal.Exponent()
+// }
 
-// Coefficient returns the coefficient of the decimal.  It is scaled by 10^Exponent()
-func (d Decimal) Coefficient() *big.Int {
-	return d.decimal.Coefficient()
-}
+// // Coefficient returns the coefficient of the decimal.  It is scaled by 10^Exponent()
+// func (d Decimal) Coefficient() *big.Int {
+// 	return d.decimal.Coefficient()
+// }
 
-// IntPart returns the integer component of the decimal.
-func (d Decimal) IntPart() int64 {
-	return d.decimal.IntPart()
-}
+// // IntPart returns the integer component of the decimal.
+// func (d Decimal) IntPart() int64 {
+// 	return d.decimal.IntPart()
+// }
 
-// BigInt returns integer component of the decimal as a BigInt.
-func (d Decimal) BigInt() *big.Int {
-	return d.decimal.BigInt()
-}
+// // BigInt returns integer component of the decimal as a BigInt.
+// func (d Decimal) BigInt() *big.Int {
+// 	return d.decimal.BigInt()
+// }
 
-// BigFloat returns decimal as BigFloat.
-// Be aware that casting decimal to BigFloat might cause a loss of precision.
-func (d Decimal) BigFloat() *big.Float {
-	return d.decimal.BigFloat()
-}
+// // BigFloat returns decimal as BigFloat.
+// // Be aware that casting decimal to BigFloat might cause a loss of precision.
+// func (d Decimal) BigFloat() *big.Float {
+// 	return d.decimal.BigFloat()
+// }
 
-// Rat returns a rational number representation of the decimal.
-func (d Decimal) Rat() *big.Rat {
-	return d.decimal.Rat()
-}
+// // Rat returns a rational number representation of the decimal.
+// func (d Decimal) Rat() *big.Rat {
+// 	return d.decimal.Rat()
+// }
 
-// Float64 returns the nearest float64 value for d and a bool indicating
-// whether f represents d exactly.
-// For more details, see the documentation for big.Rat.Float64
-func (d Decimal) Float64() (f float64, exact bool) {
-	return d.decimal.Float64()
-}
+// // Float64 returns the nearest float64 value for d and a bool indicating
+// // whether f represents d exactly.
+// // For more details, see the documentation for big.Rat.Float64
+// func (d Decimal) Float64() (f float64, exact bool) {
+// 	return d.decimal.Float64()
+// }
 
 // String returns the string representation of the decimal
 // with the fixed point.
@@ -724,396 +876,400 @@ func (d Decimal) Float64() (f float64, exact bool) {
 //     -12.345
 //
 func (d Decimal) String() string {
-	return d.decimal.String()
-}
-
-// StringFixed returns a rounded fixed-point string with places digits after
-// the decimal point.
-//
-// Example:
-//
-// 	   NewFromFloat(0).StringFixed(2) // output: "0.00"
-// 	   NewFromFloat(0).StringFixed(0) // output: "0"
-// 	   NewFromFloat(5.45).StringFixed(0) // output: "5"
-// 	   NewFromFloat(5.45).StringFixed(1) // output: "5.5"
-// 	   NewFromFloat(5.45).StringFixed(2) // output: "5.45"
-// 	   NewFromFloat(5.45).StringFixed(3) // output: "5.450"
-// 	   NewFromFloat(545).StringFixed(-1) // output: "550"
-//
-func (d Decimal) StringFixed(places int32) string {
-	return d.decimal.StringFixed(places)
-}
-
-// StringFixedBank returns a banker rounded fixed-point string with places digits
-// after the decimal point.
-//
-// Example:
-//
-// 	   NewFromFloat(0).StringFixedBank(2) // output: "0.00"
-// 	   NewFromFloat(0).StringFixedBank(0) // output: "0"
-// 	   NewFromFloat(5.45).StringFixedBank(0) // output: "5"
-// 	   NewFromFloat(5.45).StringFixedBank(1) // output: "5.4"
-// 	   NewFromFloat(5.45).StringFixedBank(2) // output: "5.45"
-// 	   NewFromFloat(5.45).StringFixedBank(3) // output: "5.450"
-// 	   NewFromFloat(545).StringFixedBank(-1) // output: "540"
-//
-func (d Decimal) StringFixedBank(places int32) string {
-	return d.decimal.StringFixedBank(places)
-}
-
-// StringFixedCash returns a Swedish/Cash rounded fixed-point string. For
-// more details see the documentation at function RoundCash.
-func (d Decimal) StringFixedCash(interval uint8) string {
-	return d.decimal.StringFixedCash(interval)
-}
-
-// Round rounds the decimal to places decimal places.
-// If places < 0, it will round the integer part to the nearest 10^(-places).
-//
-// Example:
-//
-// 	   NewFromFloat(5.45).Round(1).String() // output: "5.5"
-// 	   NewFromFloat(545).Round(-1).String() // output: "550"
-//
-func (d Decimal) Round(places int32) Decimal {
-	p := strconv.Itoa(int(places))
-
-	return Decimal{
-		decimal: d.decimal.Round(places),
-		vars:    round + leftParen + p + rightParen + leftParen + d.vars + rightParen,
-		formula: round + leftParen + p + rightParen + leftParen + d.formula + rightParen,
-	}
-}
-
-// RoundBank rounds the decimal to places decimal places.
-// If the final digit to round is equidistant from the nearest two integers the
-// rounded value is taken as the even number
-//
-// If places < 0, it will round the integer part to the nearest 10^(-places).
-//
-// Examples:
-//
-// 	   NewFromFloat(5.45).Round(1).String() // output: "5.4"
-// 	   NewFromFloat(545).Round(-1).String() // output: "540"
-// 	   NewFromFloat(5.46).Round(1).String() // output: "5.5"
-// 	   NewFromFloat(546).Round(-1).String() // output: "550"
-// 	   NewFromFloat(5.55).Round(1).String() // output: "5.6"
-// 	   NewFromFloat(555).Round(-1).String() // output: "560"
-//
-func (d Decimal) RoundBank(places int32) Decimal {
-	p := strconv.Itoa(int(places))
-
-	return Decimal{
-		decimal: d.decimal.RoundBank(places),
-		vars:    roundBank + leftParen + p + rightParen + leftParen + d.vars + rightParen,
-		formula: roundBank + leftParen + p + rightParen + leftParen + d.formula + rightParen,
-	}
-}
-
-// RoundCash aka Cash/Penny/öre rounding rounds decimal to a specific
-// interval. The amount payable for a cash transaction is rounded to the nearest
-// multiple of the minimum currency unit available. The following intervals are
-// available: 5, 10, 25, 50 and 100; any other number throws a panic.
-//	    5:   5 cent rounding 3.43 => 3.45
-// 	   10:  10 cent rounding 3.45 => 3.50 (5 gets rounded up)
-// 	   25:  25 cent rounding 3.41 => 3.50
-// 	   50:  50 cent rounding 3.75 => 4.00
-// 	  100: 100 cent rounding 3.50 => 4.00
-// For more details: https://en.wikipedia.org/wiki/Cash_rounding
-func (d Decimal) RoundCash(interval uint8) Decimal {
-	i := strconv.Itoa(int(interval))
-
-	return Decimal{
-		decimal: d.decimal.RoundCash(interval),
-		vars:    roundCash + leftParen + i + rightParen + leftParen + d.vars + rightParen,
-		formula: roundCash + leftParen + i + rightParen + leftParen + d.formula + rightParen,
-	}
-}
-
-// Floor returns the nearest integer value less than or equal to d.
-func (d Decimal) Floor() Decimal {
-	return Decimal{
-		decimal: d.decimal.Floor(),
-		vars:    floor + leftParen + d.vars + rightParen,
-		formula: floor + leftParen + d.formula + rightParen,
-	}
-}
-
-// Ceil returns the nearest integer value greater than or equal to d.
-func (d Decimal) Ceil() Decimal {
-	return Decimal{
-		decimal: d.decimal.Ceil(),
-		vars:    ceil + leftParen + d.vars + rightParen,
-		formula: ceil + leftParen + d.formula + rightParen,
-	}
-}
-
-// Truncate truncates off digits from the number, without rounding.
-//
-// NOTE: precision is the last digit that will not be truncated (must be >= 0).
-//
-// Example:
-//
-//     decimal.NewFromString("123.456").Truncate(2).String() // "123.45"
-//
-func (d Decimal) Truncate(precision int32) Decimal {
-	p := strconv.Itoa(int(precision))
-
-	return Decimal{
-		decimal: d.decimal.Truncate(precision),
-		vars:    truncate + leftParen + p + rightParen + leftParen + d.vars + rightParen,
-		formula: truncate + leftParen + p + rightParen + leftParen + d.formula + rightParen,
-	}
-}
-
-// UnmarshalJSON implements the json.Unmarshaler interface.
-func (d *Decimal) UnmarshalJSON(decimalBytes []byte) error {
-	if err := d.decimal.UnmarshalJSON(decimalBytes); err != nil {
-		return err
-	}
-	d.formula = d.String()
-
-	return nil
-}
-
-// MarshalJSON implements the json.Marshaler interface.
-func (d Decimal) MarshalJSON() ([]byte, error) {
-	return d.decimal.MarshalJSON()
-}
-
-// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface. As a string representation
-// is already used when encoding to text, this method stores that string as []byte
-func (d *Decimal) UnmarshalBinary(data []byte) error {
-	if err := d.decimal.UnmarshalBinary(data); err != nil {
-		return err
-	}
-	d.formula = d.String()
-	return nil
-}
-
-// MarshalBinary implements the encoding.BinaryMarshaler interface.
-func (d Decimal) MarshalBinary() (data []byte, err error) {
-	return d.decimal.MarshalBinary()
-}
-
-// Scan implements the sql.Scanner interface for database deserialization.
-func (d *Decimal) Scan(value interface{}) error {
-	if err := d.decimal.Scan(value); err != nil {
-		return err
-	}
-	d.formula = d.String()
-	return nil
-}
-
-// Value implements the driver.Valuer interface for database serialization.
-func (d Decimal) Value() (driver.Value, error) {
-	return d.decimal.Value()
-}
-
-// UnmarshalText implements the encoding.TextUnmarshaler interface for XML
-// deserialization.
-func (d *Decimal) UnmarshalText(text []byte) error {
-	if err := d.decimal.UnmarshalText(text); err != nil {
-		return err
-	}
-	d.formula = d.String()
-	return nil
-}
-
-// MarshalText implements the encoding.TextMarshaler interface for XML
-// serialization.
-func (d Decimal) MarshalText() (text []byte, err error) {
-	return d.decimal.MarshalText()
-}
-
-// GobEncode implements the gob.GobEncoder interface for gob serialization.
-func (d Decimal) GobEncode() ([]byte, error) {
-	return d.decimal.GobEncode()
-}
-
-// GobDecode implements the gob.GobDecoder interface for gob serialization.
-func (d *Decimal) GobDecode(data []byte) error {
-	if err := d.decimal.UnmarshalBinary(data); err != nil {
-		return err
-	}
-	d.formula = d.String()
-	return d.decimal.GobDecode(data)
-}
-
-// StringScaled first scales the decimal then calls .String() on it.
-// NOTE: buggy, unintuitive, and DEPRECATED! Use StringFixed instead.
-func (d Decimal) StringScaled(exp int32) string {
-	return d.decimal.StringScaled(exp)
-}
-
-// Min returns the smallest Decimal that was passed in the arguments.
-//
-// To call this function with an array, you must do:
-//
-//     Min(arr[0], arr[1:]...)
-//
-// This makes it harder to accidentally call Min with 0 arguments.
-func Min(first Decimal, rest ...Decimal) Decimal {
-	varsList := make([]string, 1+len(rest))
-	varsList[0] = first.vars
-	formulaList := make([]string, 1+len(rest))
-	formulaList[0] = first.formula
-
-	newRest := make([]decimal.Decimal, len(rest))
-	for i, r := range rest {
-		newRest[i] = r.decimal
-		varsList[i+1] = r.vars
-		formulaList[i+1] = r.formula
+	if len(d.decimals) == 0 {
+		return "0"
 	}
 
-	return Decimal{
-		decimal: decimal.Min(first.decimal, newRest...),
-		vars:    min + leftParen + strings.Join(varsList, comma) + rightParen,
-		formula: min + leftParen + strings.Join(formulaList, comma) + rightParen,
-	}
+	return d.decimals[len(d.decimals)-1].String()
 }
 
-// Max returns the largest Decimal that was passed in the arguments.
-//
-// To call this function with an array, you must do:
-//
-//     Max(arr[0], arr[1:]...)
-//
-// This makes it harder to accidentally call Max with 0 arguments.
-func Max(first Decimal, rest ...Decimal) Decimal {
-	varsList := make([]string, 1+len(rest))
-	varsList[0] = first.vars
-	formulaList := make([]string, 1+len(rest))
-	formulaList[0] = first.formula
+// // StringFixed returns a rounded fixed-point string with places digits after
+// // the decimal point.
+// //
+// // Example:
+// //
+// // 	   NewFromFloat(0).StringFixed(2) // output: "0.00"
+// // 	   NewFromFloat(0).StringFixed(0) // output: "0"
+// // 	   NewFromFloat(5.45).StringFixed(0) // output: "5"
+// // 	   NewFromFloat(5.45).StringFixed(1) // output: "5.5"
+// // 	   NewFromFloat(5.45).StringFixed(2) // output: "5.45"
+// // 	   NewFromFloat(5.45).StringFixed(3) // output: "5.450"
+// // 	   NewFromFloat(545).StringFixed(-1) // output: "550"
+// //
+// func (d Decimal) StringFixed(places int32) string {
+// 	return d.decimal.StringFixed(places)
+// }
 
-	newRest := make([]decimal.Decimal, len(rest))
-	for i, r := range rest {
-		newRest[i] = r.decimal
-		varsList[i+1] = r.vars
-		formulaList[i+1] = r.formula
-	}
+// // StringFixedBank returns a banker rounded fixed-point string with places digits
+// // after the decimal point.
+// //
+// // Example:
+// //
+// // 	   NewFromFloat(0).StringFixedBank(2) // output: "0.00"
+// // 	   NewFromFloat(0).StringFixedBank(0) // output: "0"
+// // 	   NewFromFloat(5.45).StringFixedBank(0) // output: "5"
+// // 	   NewFromFloat(5.45).StringFixedBank(1) // output: "5.4"
+// // 	   NewFromFloat(5.45).StringFixedBank(2) // output: "5.45"
+// // 	   NewFromFloat(5.45).StringFixedBank(3) // output: "5.450"
+// // 	   NewFromFloat(545).StringFixedBank(-1) // output: "540"
+// //
+// func (d Decimal) StringFixedBank(places int32) string {
+// 	return d.decimal.StringFixedBank(places)
+// }
 
-	return Decimal{
-		decimal: decimal.Max(first.decimal, newRest...),
-		vars:    max + leftParen + strings.Join(varsList, comma) + rightParen,
-		formula: max + leftParen + strings.Join(formulaList, comma) + rightParen,
-	}
-}
+// // StringFixedCash returns a Swedish/Cash rounded fixed-point string. For
+// // more details see the documentation at function RoundCash.
+// func (d Decimal) StringFixedCash(interval uint8) string {
+// 	return d.decimal.StringFixedCash(interval)
+// }
 
-// Sum returns the combined total of the provided first and rest Decimals
-func Sum(first Decimal, rest ...Decimal) Decimal {
-	varsList := make([]string, 1+len(rest))
-	varsList[0] = first.vars
-	formulaList := make([]string, 1+len(rest))
-	formulaList[0] = first.formula
+// // Round rounds the decimal to places decimal places.
+// // If places < 0, it will round the integer part to the nearest 10^(-places).
+// //
+// // Example:
+// //
+// // 	   NewFromFloat(5.45).Round(1).String() // output: "5.5"
+// // 	   NewFromFloat(545).Round(-1).String() // output: "550"
+// //
+// func (d Decimal) Round(places int32) Decimal {
+// 	p := strconv.Itoa(int(places))
 
-	newRest := make([]decimal.Decimal, len(rest))
-	for i, r := range rest {
-		newRest[i] = r.decimal
-		varsList[i+1] = r.vars
-		formulaList[i+1] = r.formula
-	}
+// 	return Decimal{
+// 		decimal: d.decimal.Round(places),
+// 		vars:    round + leftParen + p + rightParen + leftParen + d.vars + rightParen,
+// 		formula: round + leftParen + p + rightParen + leftParen + d.formula + rightParen,
+// 	}
+// }
 
-	return Decimal{
-		decimal: decimal.Sum(first.decimal, newRest...),
-		vars:    sum + leftParen + strings.Join(varsList, comma) + rightParen,
-		formula: sum + leftParen + strings.Join(formulaList, comma) + rightParen,
-	}
-}
+// // RoundBank rounds the decimal to places decimal places.
+// // If the final digit to round is equidistant from the nearest two integers the
+// // rounded value is taken as the even number
+// //
+// // If places < 0, it will round the integer part to the nearest 10^(-places).
+// //
+// // Examples:
+// //
+// // 	   NewFromFloat(5.45).Round(1).String() // output: "5.4"
+// // 	   NewFromFloat(545).Round(-1).String() // output: "540"
+// // 	   NewFromFloat(5.46).Round(1).String() // output: "5.5"
+// // 	   NewFromFloat(546).Round(-1).String() // output: "550"
+// // 	   NewFromFloat(5.55).Round(1).String() // output: "5.6"
+// // 	   NewFromFloat(555).Round(-1).String() // output: "560"
+// //
+// func (d Decimal) RoundBank(places int32) Decimal {
+// 	p := strconv.Itoa(int(places))
 
-// Avg returns the average value of the provided first and rest Decimals
-func Avg(first Decimal, rest ...Decimal) Decimal {
-	varsList := make([]string, 1+len(rest))
-	varsList[0] = first.vars
-	formulaList := make([]string, 1+len(rest))
-	formulaList[0] = first.formula
+// 	return Decimal{
+// 		decimal: d.decimal.RoundBank(places),
+// 		vars:    roundBank + leftParen + p + rightParen + leftParen + d.vars + rightParen,
+// 		formula: roundBank + leftParen + p + rightParen + leftParen + d.formula + rightParen,
+// 	}
+// }
 
-	newRest := make([]decimal.Decimal, len(rest))
-	for i, r := range rest {
-		newRest[i] = r.decimal
-		varsList[i+1] = r.vars
-		formulaList[i+1] = r.formula
-	}
+// // RoundCash aka Cash/Penny/öre rounding rounds decimal to a specific
+// // interval. The amount payable for a cash transaction is rounded to the nearest
+// // multiple of the minimum currency unit available. The following intervals are
+// // available: 5, 10, 25, 50 and 100; any other number throws a panic.
+// //	    5:   5 cent rounding 3.43 => 3.45
+// // 	   10:  10 cent rounding 3.45 => 3.50 (5 gets rounded up)
+// // 	   25:  25 cent rounding 3.41 => 3.50
+// // 	   50:  50 cent rounding 3.75 => 4.00
+// // 	  100: 100 cent rounding 3.50 => 4.00
+// // For more details: https://en.wikipedia.org/wiki/Cash_rounding
+// func (d Decimal) RoundCash(interval uint8) Decimal {
+// 	i := strconv.Itoa(int(interval))
 
-	return Decimal{
-		decimal: decimal.Avg(first.decimal, newRest...),
-		vars:    avg + leftParen + strings.Join(varsList, comma) + rightParen,
-		formula: avg + leftParen + strings.Join(formulaList, comma) + rightParen,
-	}
-}
+// 	return Decimal{
+// 		decimal: d.decimal.RoundCash(interval),
+// 		vars:    roundCash + leftParen + i + rightParen + leftParen + d.vars + rightParen,
+// 		formula: roundCash + leftParen + i + rightParen + leftParen + d.formula + rightParen,
+// 	}
+// }
 
-// RescalePair rescales two decimals to common exponential value (minimal exp of both decimals)
-func RescalePair(d1 Decimal, d2 Decimal) (Decimal, Decimal) {
-	d3, d4 := decimal.RescalePair(d1.decimal, d2.decimal)
-	return Decimal{name: d1.name, decimal: d3, vars: d1.name, formula: d3.String()},
-		Decimal{name: d2.name, decimal: d4, vars: d2.name, formula: d4.String()}
-}
+// // Floor returns the nearest integer value less than or equal to d.
+// func (d Decimal) Floor() Decimal {
+// 	return Decimal{
+// 		decimal: d.decimal.Floor(),
+// 		vars:    floor + leftParen + d.vars + rightParen,
+// 		formula: floor + leftParen + d.formula + rightParen,
+// 	}
+// }
 
-func (d NullDecimal) Valid() bool {
-	return d.decimal.Valid
-}
+// // Ceil returns the nearest integer value greater than or equal to d.
+// func (d Decimal) Ceil() Decimal {
+// 	return Decimal{
+// 		decimal: d.decimal.Ceil(),
+// 		vars:    ceil + leftParen + d.vars + rightParen,
+// 		formula: ceil + leftParen + d.formula + rightParen,
+// 	}
+// }
 
-func (d NullDecimal) Decimal() Decimal {
-	return Decimal{
-		name:    d.name,
-		decimal: d.decimal.Decimal,
-		vars:    d.name,
-		formula: d.decimal.Decimal.String(),
-	}
-}
+// // Truncate truncates off digits from the number, without rounding.
+// //
+// // NOTE: precision is the last digit that will not be truncated (must be >= 0).
+// //
+// // Example:
+// //
+// //     decimal.NewFromString("123.456").Truncate(2).String() // "123.45"
+// //
+// func (d Decimal) Truncate(precision int32) Decimal {
+// 	p := strconv.Itoa(int(precision))
 
-// Scan implements the sql.Scanner interface for database deserialization.
-func (d *NullDecimal) Scan(value interface{}) error {
-	return d.decimal.Scan(value)
-}
+// 	return Decimal{
+// 		decimal: d.decimal.Truncate(precision),
+// 		vars:    truncate + leftParen + p + rightParen + leftParen + d.vars + rightParen,
+// 		formula: truncate + leftParen + p + rightParen + leftParen + d.formula + rightParen,
+// 	}
+// }
 
-// Value implements the driver.Valuer interface for database serialization.
-func (d NullDecimal) Value() (driver.Value, error) {
-	return d.decimal.Value()
-}
+// // UnmarshalJSON implements the json.Unmarshaler interface.
+// func (d *Decimal) UnmarshalJSON(decimalBytes []byte) error {
+// 	if err := d.decimal.UnmarshalJSON(decimalBytes); err != nil {
+// 		return err
+// 	}
+// 	d.formula = d.String()
 
-// UnmarshalJSON implements the json.Unmarshaler interface.
-func (d *NullDecimal) UnmarshalJSON(decimalBytes []byte) error {
-	return d.decimal.UnmarshalJSON(decimalBytes)
-}
+// 	return nil
+// }
 
-// MarshalJSON implements the json.Marshaler interface.
-func (d NullDecimal) MarshalJSON() ([]byte, error) {
-	return d.decimal.MarshalJSON()
-}
+// // MarshalJSON implements the json.Marshaler interface.
+// func (d Decimal) MarshalJSON() ([]byte, error) {
+// 	return d.decimal.MarshalJSON()
+// }
 
-// Atan returns the arctangent, in radians, of x.
-func (d Decimal) Atan() Decimal {
-	return Decimal{
-		decimal: d.decimal.Atan(),
-		vars:    atan + leftParen + d.vars + rightParen,
-		formula: atan + leftParen + d.formula + rightParen,
-	}
-}
+// // UnmarshalBinary implements the encoding.BinaryUnmarshaler interface. As a string representation
+// // is already used when encoding to text, this method stores that string as []byte
+// func (d *Decimal) UnmarshalBinary(data []byte) error {
+// 	if err := d.decimal.UnmarshalBinary(data); err != nil {
+// 		return err
+// 	}
+// 	d.formula = d.String()
+// 	return nil
+// }
 
-// Sin returns the sine of the radian argument x.
-func (d Decimal) Sin() Decimal {
-	return Decimal{
-		decimal: d.decimal.Sin(),
-		vars:    sin + leftParen + d.vars + rightParen,
-		formula: sin + leftParen + d.formula + rightParen,
-	}
-}
+// // MarshalBinary implements the encoding.BinaryMarshaler interface.
+// func (d Decimal) MarshalBinary() (data []byte, err error) {
+// 	return d.decimal.MarshalBinary()
+// }
 
-// Cos returns the cosine of the radian argument x.
-func (d Decimal) Cos() Decimal {
-	return Decimal{
-		decimal: d.decimal.Cos(),
-		vars:    cos + leftParen + d.vars + rightParen,
-		formula: cos + leftParen + d.formula + rightParen,
-	}
-}
+// // Scan implements the sql.Scanner interface for database deserialization.
+// func (d *Decimal) Scan(value interface{}) error {
+// 	if err := d.decimal.Scan(value); err != nil {
+// 		return err
+// 	}
+// 	d.formula = d.String()
+// 	return nil
+// }
 
-// Tan returns the tangent of the radian argument x.
-func (d Decimal) Tan() Decimal {
-	return Decimal{
-		decimal: d.decimal.Tan(),
-		vars:    tan + leftParen + d.vars + rightParen,
-		formula: tan + leftParen + d.formula + rightParen,
-	}
-}
+// // Value implements the driver.Valuer interface for database serialization.
+// func (d Decimal) Value() (driver.Value, error) {
+// 	return d.decimal.Value()
+// }
+
+// // UnmarshalText implements the encoding.TextUnmarshaler interface for XML
+// // deserialization.
+// func (d *Decimal) UnmarshalText(text []byte) error {
+// 	if err := d.decimal.UnmarshalText(text); err != nil {
+// 		return err
+// 	}
+// 	d.formula = d.String()
+// 	return nil
+// }
+
+// // MarshalText implements the encoding.TextMarshaler interface for XML
+// // serialization.
+// func (d Decimal) MarshalText() (text []byte, err error) {
+// 	return d.decimal.MarshalText()
+// }
+
+// // GobEncode implements the gob.GobEncoder interface for gob serialization.
+// func (d Decimal) GobEncode() ([]byte, error) {
+// 	return d.decimal.GobEncode()
+// }
+
+// // GobDecode implements the gob.GobDecoder interface for gob serialization.
+// func (d *Decimal) GobDecode(data []byte) error {
+// 	if err := d.decimal.UnmarshalBinary(data); err != nil {
+// 		return err
+// 	}
+// 	d.formula = d.String()
+// 	return d.decimal.GobDecode(data)
+// }
+
+// // StringScaled first scales the decimal then calls .String() on it.
+// // NOTE: buggy, unintuitive, and DEPRECATED! Use StringFixed instead.
+// func (d Decimal) StringScaled(exp int32) string {
+// 	return d.decimal.StringScaled(exp)
+// }
+
+// // Min returns the smallest Decimal that was passed in the arguments.
+// //
+// // To call this function with an array, you must do:
+// //
+// //     Min(arr[0], arr[1:]...)
+// //
+// // This makes it harder to accidentally call Min with 0 arguments.
+// func Min(first Decimal, rest ...Decimal) Decimal {
+// 	varsList := make([]string, 1+len(rest))
+// 	varsList[0] = first.vars
+// 	formulaList := make([]string, 1+len(rest))
+// 	formulaList[0] = first.formula
+
+// 	newRest := make([]decimal.Decimal, len(rest))
+// 	for i, r := range rest {
+// 		newRest[i] = r.decimal
+// 		varsList[i+1] = r.vars
+// 		formulaList[i+1] = r.formula
+// 	}
+
+// 	return Decimal{
+// 		decimal: decimal.Min(first.decimal, newRest...),
+// 		vars:    min + leftParen + strings.Join(varsList, comma) + rightParen,
+// 		formula: min + leftParen + strings.Join(formulaList, comma) + rightParen,
+// 	}
+// }
+
+// // Max returns the largest Decimal that was passed in the arguments.
+// //
+// // To call this function with an array, you must do:
+// //
+// //     Max(arr[0], arr[1:]...)
+// //
+// // This makes it harder to accidentally call Max with 0 arguments.
+// func Max(first Decimal, rest ...Decimal) Decimal {
+// 	varsList := make([]string, 1+len(rest))
+// 	varsList[0] = first.vars
+// 	formulaList := make([]string, 1+len(rest))
+// 	formulaList[0] = first.formula
+
+// 	newRest := make([]decimal.Decimal, len(rest))
+// 	for i, r := range rest {
+// 		newRest[i] = r.decimal
+// 		varsList[i+1] = r.vars
+// 		formulaList[i+1] = r.formula
+// 	}
+
+// 	return Decimal{
+// 		decimal: decimal.Max(first.decimal, newRest...),
+// 		vars:    max + leftParen + strings.Join(varsList, comma) + rightParen,
+// 		formula: max + leftParen + strings.Join(formulaList, comma) + rightParen,
+// 	}
+// }
+
+// // Sum returns the combined total of the provided first and rest Decimals
+// func Sum(first Decimal, rest ...Decimal) Decimal {
+// 	varsList := make([]string, 1+len(rest))
+// 	varsList[0] = first.vars
+// 	formulaList := make([]string, 1+len(rest))
+// 	formulaList[0] = first.formula
+
+// 	newRest := make([]decimal.Decimal, len(rest))
+// 	for i, r := range rest {
+// 		newRest[i] = r.decimal
+// 		varsList[i+1] = r.vars
+// 		formulaList[i+1] = r.formula
+// 	}
+
+// 	return Decimal{
+// 		decimal: decimal.Sum(first.decimal, newRest...),
+// 		vars:    sum + leftParen + strings.Join(varsList, comma) + rightParen,
+// 		formula: sum + leftParen + strings.Join(formulaList, comma) + rightParen,
+// 	}
+// }
+
+// // Avg returns the average value of the provided first and rest Decimals
+// func Avg(first Decimal, rest ...Decimal) Decimal {
+// 	varsList := make([]string, 1+len(rest))
+// 	varsList[0] = first.vars
+// 	formulaList := make([]string, 1+len(rest))
+// 	formulaList[0] = first.formula
+
+// 	newRest := make([]decimal.Decimal, len(rest))
+// 	for i, r := range rest {
+// 		newRest[i] = r.decimal
+// 		varsList[i+1] = r.vars
+// 		formulaList[i+1] = r.formula
+// 	}
+
+// 	return Decimal{
+// 		decimal: decimal.Avg(first.decimal, newRest...),
+// 		vars:    avg + leftParen + strings.Join(varsList, comma) + rightParen,
+// 		formula: avg + leftParen + strings.Join(formulaList, comma) + rightParen,
+// 	}
+// }
+
+// // RescalePair rescales two decimals to common exponential value (minimal exp of both decimals)
+// func RescalePair(d1 Decimal, d2 Decimal) (Decimal, Decimal) {
+// 	d3, d4 := decimal.RescalePair(d1.decimal, d2.decimal)
+// 	return Decimal{name: d1.name, decimal: d3, vars: d1.name, formula: d3.String()},
+// 		Decimal{name: d2.name, decimal: d4, vars: d2.name, formula: d4.String()}
+// }
+
+// func (d NullDecimal) Valid() bool {
+// 	return d.decimal.Valid
+// }
+
+// func (d NullDecimal) Decimal() Decimal {
+// 	return Decimal{
+// 		name:    d.name,
+// 		decimal: d.decimal.Decimal,
+// 		vars:    d.name,
+// 		formula: d.decimal.Decimal.String(),
+// 	}
+// }
+
+// // Scan implements the sql.Scanner interface for database deserialization.
+// func (d *NullDecimal) Scan(value interface{}) error {
+// 	return d.decimal.Scan(value)
+// }
+
+// // Value implements the driver.Valuer interface for database serialization.
+// func (d NullDecimal) Value() (driver.Value, error) {
+// 	return d.decimal.Value()
+// }
+
+// // UnmarshalJSON implements the json.Unmarshaler interface.
+// func (d *NullDecimal) UnmarshalJSON(decimalBytes []byte) error {
+// 	return d.decimal.UnmarshalJSON(decimalBytes)
+// }
+
+// // MarshalJSON implements the json.Marshaler interface.
+// func (d NullDecimal) MarshalJSON() ([]byte, error) {
+// 	return d.decimal.MarshalJSON()
+// }
+
+// // Atan returns the arctangent, in radians, of x.
+// func (d Decimal) Atan() Decimal {
+// 	return Decimal{
+// 		decimal: d.decimal.Atan(),
+// 		vars:    atan + leftParen + d.vars + rightParen,
+// 		formula: atan + leftParen + d.formula + rightParen,
+// 	}
+// }
+
+// // Sin returns the sine of the radian argument x.
+// func (d Decimal) Sin() Decimal {
+// 	return Decimal{
+// 		decimal: d.decimal.Sin(),
+// 		vars:    sin + leftParen + d.vars + rightParen,
+// 		formula: sin + leftParen + d.formula + rightParen,
+// 	}
+// }
+
+// // Cos returns the cosine of the radian argument x.
+// func (d Decimal) Cos() Decimal {
+// 	return Decimal{
+// 		decimal: d.decimal.Cos(),
+// 		vars:    cos + leftParen + d.vars + rightParen,
+// 		formula: cos + leftParen + d.formula + rightParen,
+// 	}
+// }
+
+// // Tan returns the tangent of the radian argument x.
+// func (d Decimal) Tan() Decimal {
+// 	return Decimal{
+// 		decimal: d.decimal.Tan(),
+// 		vars:    tan + leftParen + d.vars + rightParen,
+// 		formula: tan + leftParen + d.formula + rightParen,
+// 	}
+// }
