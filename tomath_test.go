@@ -218,19 +218,24 @@ func TestMul(t *testing.T) {
 	assert.Equal(t, "1 * 2 = 2", formula)
 }
 
-// func TestShift(t *testing.T) {
-// 	d := NewWithName("var1", 1, 0).Shift(1)
-// 	vars, formula := d.Math()
-// 	assert.Equal(t, "shift(1)(var1) = ?", vars)
-// 	assert.Equal(t, "shift(1)(1) = 10", formula)
-// }
+func TestShift(t *testing.T) {
+	d := NewWithName("var1", 1, 0).Shift(1)
+	vars, formula := d.Math()
+	assert.Equal(t, "shift(1)(var1) = ?", vars)
+	assert.Equal(t, "shift(1)(1) = 10", formula)
 
-// func TestDiv(t *testing.T) {
-// 	d := NewWithName("var1", 4, 0).Div(NewWithName("var2", 2, 0))
-// 	vars, formula := d.Math()
-// 	assert.Equal(t, "var1 / var2 = ?", vars)
-// 	assert.Equal(t, "4 / 2 = 2", formula)
-// }
+	d2 := d.Shift(1)
+	vars, formula = d2.Math()
+	assert.Equal(t, "shift(1)(shift(1)(var1)) = ?", vars)
+	assert.Equal(t, "shift(1)(shift(1)(1)) = 100", formula)
+}
+
+func TestDiv(t *testing.T) {
+	d := NewWithName("var1", 4, 0).Div(NewWithName("var2", 2, 0))
+	vars, formula := d.Math()
+	assert.Equal(t, "var1 / var2 = ?", vars)
+	assert.Equal(t, "4 / 2 = 2", formula)
+}
 
 // func TestDivRound(t *testing.T) {
 // 	d := NewFromFloatWithName("var1", 4.333).DivRound(NewFromFloatWithName("var2", 2.7), 3)
@@ -535,11 +540,31 @@ func TestMul(t *testing.T) {
 // 	assert.Equal(t, "tan(1) = 1.5574077246549025", formula)
 // }
 
-func BenchmarkToMath(b *testing.B) {
+func BenchmarkToMathBinary(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		d := NewFromFloatWithName("start", 100)
 		for j := 0; j < 100; j++ {
 			d = d.Add(NewFromFloatWithName("var"+strconv.Itoa(j), float64(i)))
+		}
+		d.Math()
+	}
+}
+
+func BenchmarkToMathUnary(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		d := NewFromFloatWithName("start", 100)
+		for j := 0; j < 100; j++ {
+			d = d.Abs()
+		}
+		d.Math()
+	}
+}
+
+func BenchmarkToMathUnaryWithPrecision(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		d := NewFromFloatWithName("start", 100)
+		for j := 0; j < 100; j++ {
+			d = d.Shift(1)
 		}
 		d.Math()
 	}

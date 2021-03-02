@@ -25,6 +25,7 @@ package tomath
 
 import (
 	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/shopspring/decimal"
@@ -92,43 +93,60 @@ var symbols = map[byte]string{
 }
 
 const (
-	abs byte = iota // first the unary operations
-	neg
-	round
+	// unary operators with precision
+	round byte = iota
 	roundBank
 	roundCash
-	floor
-	ceil
-	truncate
-	atan
-	sin
-	cos
-	tan
-	add // second the binary operations
-	sub
-	mul
-	div
 	shift
-	quoRem
+	truncate
+
+	// unary operations
+	abs
+	atan
+	ceil
+	cos
+	floor
+	neg
+	sin
+	tan
+
+	// binary operators with precision
 	divRound
+	quoRem
+
+	//  binary operations
+	add
+	div
 	mod
+	mul
 	pow
-	min //finally the operations that can take many operands
-	max
-	sum
+	sub
+
+	// variatic operators
 	avg
+	max
+	min
+	sum
 )
 
 func isUnary(b byte) bool {
-	return b < add
+	return b < divRound
+}
+
+func isUnaryWithPrecision(b byte) bool {
+	return b < abs
 }
 
 func isBinary(b byte) bool {
-	return b < min
+	return b < avg
+}
+
+func isBinaryWithPrecision(b byte) bool {
+	return b < add
 }
 
 func isVariatic(b byte) bool {
-	return b < min
+	return b > sub
 }
 
 type (
@@ -152,11 +170,12 @@ type (
 	// Potentially store strings in string table to cut out duplicates
 	// parens can be bit shiftend if you know how many uniary operators have gone by
 	Decimal struct {
-		ops       []byte            // the operation decides what of the others is to be used
-		parens    []bool            // not needed for unary operations
-		names     []string          // not needed for unary operations
-		decimals  []decimal.Decimal // not needed for unary operations
-		valCounts []uint8           // only needed for operations that can take many operands
+		ops        []byte            // the operation decides what of the others is to be used
+		parens     []bool            // not needed for unary operations
+		names      []string          // not needed for unary operations
+		decimals   []decimal.Decimal // not needed for unary operations
+		valCounts  []uint8           // only needed for operations that can take many operands
+		precisions []int32
 	}
 )
 
@@ -215,22 +234,21 @@ func (d Decimal) Math() (string, string) {
 	}
 
 	var vars, formula strings.Builder
-
-	// if d.formula == "" {
-	// 	d.formula = d.String()
-	// }
-
-	// return d.vars + " = " + d.name,
-	// 	d.formula + " = " + d.String()
-
 	var solution decimal.Decimal
-	var curDecimal, curName, parenCount int
+	var curDecimal, curName, parenCount, curPrecision int
 
 	solution = d.decimals[curDecimal]
 
 	for i, op := range d.ops {
 		if isUnary(op) {
 			vars.WriteString(symbols[op])
+
+			if isUnaryWithPrecision(op) {
+				vars.WriteString(leftParen)
+				vars.WriteString(strconv.FormatInt(int64(d.precisions[curPrecision]), 10))
+				vars.WriteString(rightParen)
+			}
+
 			vars.WriteString(leftParen)
 			if len(d.ops) > i+1 && isUnary(d.ops[i+1]) {
 				parenCount++
@@ -242,6 +260,13 @@ func (d Decimal) Math() (string, string) {
 			}
 
 			formula.WriteString(symbols[op])
+
+			if isUnaryWithPrecision(op) {
+				formula.WriteString(leftParen)
+				formula.WriteString(strconv.FormatInt(int64(d.precisions[curPrecision]), 10))
+				formula.WriteString(rightParen)
+			}
+
 			formula.WriteString(leftParen)
 
 			if len(d.ops) == i+1 || !isUnary(d.ops[i+1]) {
@@ -261,6 +286,12 @@ func (d Decimal) Math() (string, string) {
 				solution = solution.Abs()
 			case neg:
 				solution = solution.Neg()
+			case shift:
+				solution = solution.Shift(d.precisions[curPrecision])
+			}
+
+			if isUnaryWithPrecision(op) {
+				curPrecision++
 			}
 		} else if isBinary(op) {
 			if vars.Len() == 0 {
@@ -283,6 +314,8 @@ func (d Decimal) Math() (string, string) {
 				solution = solution.Sub(d.decimals[curDecimal])
 			case mul:
 				solution = solution.Mul(d.decimals[curDecimal])
+			case div:
+				solution = solution.Div(d.decimals[curDecimal])
 			}
 
 			curDecimal++
@@ -557,48 +590,55 @@ func NewFromDecimalWithName(name string, d decimal.Decimal) Decimal {
 // Abs returns the absolute value of the decimal.
 func (d Decimal) Abs() Decimal {
 	return Decimal{
-		ops:      append(d.ops, abs),
-		decimals: append(d.decimals),
-		names:    d.names,
+		ops:        append(d.ops, abs),
+		decimals:   d.decimals,
+		names:      d.names,
+		parens:     d.parens,
+		precisions: d.precisions,
 	}
 }
 
 // Add returns d + d2.
 func (d Decimal) Add(d2 Decimal) Decimal {
 	return Decimal{
-		ops:      append(append(d.ops, d2.ops...), add),
-		decimals: append(d.decimals, d2.decimals...),
-		names:    append(d.names, d2.names...),
-		parens:   append(d.parens, true),
+		ops:        append(append(d.ops, d2.ops...), add),
+		decimals:   append(d.decimals, d2.decimals...),
+		names:      append(append(d.names, d2.names...)),
+		parens:     append(d.parens, true),
+		precisions: d.precisions,
 	}
 }
 
 // Sub returns d - d2.
 func (d Decimal) Sub(d2 Decimal) Decimal {
 	return Decimal{
-		ops:      append(append(d.ops, d2.ops...), sub),
-		decimals: append(d.decimals, d2.decimals...),
-		names:    append(d.names, d2.names...),
-		parens:   append(d.parens, true),
+		ops:        append(append(d.ops, d2.ops...), sub),
+		decimals:   append(d.decimals, d2.decimals...),
+		names:      append(append(d.names, d2.names...)),
+		parens:     append(d.parens, true),
+		precisions: d.precisions,
 	}
 }
 
 // Neg returns -d.
 func (d Decimal) Neg() Decimal {
 	return Decimal{
-		ops:      append(d.ops, neg),
-		decimals: append(d.decimals),
-		names:    d.names,
+		ops:        append(d.ops, neg),
+		decimals:   d.decimals,
+		names:      d.names,
+		parens:     d.parens,
+		precisions: d.precisions,
 	}
 }
 
 // Mul returns d * d2.
 func (d Decimal) Mul(d2 Decimal) Decimal {
 	return Decimal{
-		ops:      append(append(d.ops, d2.ops...), mul),
-		decimals: append(d.decimals, d2.decimals...),
-		names:    append(d.names, d2.names...),
-		parens:   append(d.parens, true),
+		ops:        append(append(d.ops, d2.ops...), mul),
+		decimals:   append(d.decimals, d2.decimals...),
+		names:      append(append(d.names, d2.names...)),
+		parens:     append(d.parens, true),
+		precisions: d.precisions,
 	}
 
 	// dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
@@ -626,76 +666,101 @@ func (d Decimal) Mul(d2 Decimal) Decimal {
 	// return dec
 }
 
-// // Shift shifts the decimal in base 10.
-// // It shifts left when shift is positive and right if shift is negative.
-// // In simpler terms, the given value for shift is added to the exponent
-// // of the decimal.
-// func (d Decimal) Shift(s int32) Decimal {
-// 	places := strconv.Itoa(int(s))
-// 	return Decimal{
-// 		decimal: d.decimal.Shift(s),
-// 		vars:    shift + leftParen + places + rightParen + leftParen + d.vars + rightParen,
-// 		formula: shift + leftParen + places + rightParen + leftParen + d.formula + rightParen,
-// 	}
-// }
+// Shift shifts the decimal in base 10.
+// It shifts left when shift is positive and right if shift is negative.
+// In simpler terms, the given value for shift is added to the exponent
+// of the decimal.
+func (d Decimal) Shift(s int32) Decimal {
+	return Decimal{
+		ops:        append(d.ops, shift),
+		decimals:   d.decimals,
+		names:      d.names,
+		precisions: append(d.precisions, s),
+	}
+}
 
-// // Div returns d / d2. If it doesn't divide exactly, the result will have
-// // DivisionPrecision digits after the decimal point.
-// func (d Decimal) Div(d2 Decimal) Decimal {
-// 	dec := Decimal{decimal: d.decimal.Div(d2.decimal)}
+// Div returns d / d2. If it doesn't divide exactly, the result will have
+// DivisionPrecision digits after the decimal point.
+func (d Decimal) Div(d2 Decimal) Decimal {
+	return Decimal{
+		ops:        append(append(d.ops, d2.ops...), div),
+		decimals:   append(d.decimals, d2.decimals...),
+		names:      append(append(d.names, d2.names...)),
+		parens:     append(d.parens, true),
+		precisions: d.precisions,
+	}
+	// dec := Decimal{decimal: d.decimal.Div(d2.decimal)}
 
-// 	var vars, formula string
-// 	if d.parens {
-// 		vars += leftParen + d.vars + rightParen + div
-// 		formula += leftParen + d.formula + rightParen + div
-// 	} else {
-// 		vars += d.vars + div
-// 		formula += d.formula + div
-// 	}
+	// var vars, formula string
+	// if d.parens {
+	// 	vars += leftParen + d.vars + rightParen + div
+	// 	formula += leftParen + d.formula + rightParen + div
+	// } else {
+	// 	vars += d.vars + div
+	// 	formula += d.formula + div
+	// }
 
-// 	if d2.parens {
-// 		vars += leftParen + d2.vars + rightParen
-// 		formula += leftParen + d2.formula + rightParen
-// 	} else {
-// 		vars += d2.vars
-// 		formula += d2.formula
-// 	}
+	// if d2.parens {
+	// 	vars += leftParen + d2.vars + rightParen
+	// 	formula += leftParen + d2.formula + rightParen
+	// } else {
+	// 	vars += d2.vars
+	// 	formula += d2.formula
+	// }
 
-// 	dec.vars = vars
-// 	dec.formula = formula
+	// dec.vars = vars
+	// dec.formula = formula
 
-// 	return dec
-// }
+	// return dec
+}
 
-// // QuoRem does divsion with remainder
-// // d.QuoRem(d2,precision) returns quotient q and remainder r such that
-// //   d = d2 * q + r, q an integer multiple of 10^(-precision)
-// //   0 <= r < abs(d2) * 10 ^(-precision) if d>=0
-// //   0 >= r > -abs(d2) * 10 ^(-precision) if d<0
-// // Note that precision<0 is allowed as input.
+// QuoRem does divsion with remainder
+// d.QuoRem(d2,precision) returns quotient q and remainder r such that
+//   d = d2 * q + r, q an integer multiple of 10^(-precision)
+//   0 <= r < abs(d2) * 10 ^(-precision) if d>=0
+//   0 >= r > -abs(d2) * 10 ^(-precision) if d<0
+// Note that precision<0 is allowed as input.
 // func (d Decimal) QuoRem(d2 Decimal, precision int32) (Decimal, Decimal) {
-// 	d3, d4 := d.decimal.QuoRem(d2.decimal, precision)
-// 	p := strconv.Itoa(int(precision))
+// 	return Decimal{
+// 			ops:      append(append(d.ops, d2.ops...), quoRem),
+// 			decimals: append(d.decimals, d2.decimals...),
+// 			names: append(
+// 				append(d.names, d2.names...),
+// 				d.names[len(d.names)-1]+d2.names[len(d2.names)-1]+"Quotient"),
+// 			parens:     append(d.parens, true),
+// 			precisions: append(d.precisions, precision),
+// 		}, Decimal{
+// 			ops:      append(append(d.ops, d2.ops...), quoRem),
+// 			decimals: append(d.decimals, d2.decimals...),
+// 			names: append(
+// 				append(d.names, d2.names...),
+// 				d.names[len(d.names)-1]+d2.names[len(d2.names)-1]+"Remainder"),
+// 			parens:     append(d.parens, true),
+// 			precisions: append(d.precisions, precision),
+// 		}
 
-// 	var vars, formula string
-// 	if d.parens {
-// 		vars += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.vars + rightParen + div
-// 		formula += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.formula + rightParen + div
-// 	} else {
-// 		vars += quoRem + leftParen + p + rightParen + leftParen + d.vars + div
-// 		formula += quoRem + leftParen + p + rightParen + leftParen + d.formula + div
-// 	}
+// 	// d3, d4 := d.decimal.QuoRem(d2.decimal, precision)
+// 	// p := strconv.Itoa(int(precision))
 
-// 	if d2.parens {
-// 		vars += leftParen + d2.vars + rightParen + rightParen
-// 		formula += leftParen + d2.formula + rightParen + rightParen
-// 	} else {
-// 		vars += d2.vars + rightParen
-// 		formula += d2.formula + rightParen
-// 	}
+// 	// var vars, formula string
+// 	// if d.parens {
+// 	// 	vars += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.vars + rightParen + div
+// 	// 	formula += quoRem + leftParen + p + rightParen + leftParen + leftParen + d.formula + rightParen + div
+// 	// } else {
+// 	// 	vars += quoRem + leftParen + p + rightParen + leftParen + d.vars + div
+// 	// 	formula += quoRem + leftParen + p + rightParen + leftParen + d.formula + div
+// 	// }
 
-// 	return Decimal{name: d.name + d2.name + "Quotient", decimal: d3, vars: vars, formula: formula},
-// 		Decimal{name: d.name + d2.name + "Remainder", decimal: d4, vars: vars, formula: formula}
+// 	// if d2.parens {
+// 	// 	vars += leftParen + d2.vars + rightParen + rightParen
+// 	// 	formula += leftParen + d2.formula + rightParen + rightParen
+// 	// } else {
+// 	// 	vars += d2.vars + rightParen
+// 	// 	formula += d2.formula + rightParen
+// 	// }
+
+// 	// return Decimal{name: d.name + d2.name + "Quotient", decimal: d3, vars: vars, formula: formula},
+// 	// 	Decimal{name: d.name + d2.name + "Remainder", decimal: d4, vars: vars, formula: formula}
 // }
 
 // // DivRound divides and rounds to a given precision
