@@ -223,21 +223,45 @@ func (d Decimal) Math() (string, string) {
 	// return d.vars + " = " + d.name,
 	// 	d.formula + " = " + d.String()
 
-	var curDecimal, curName int
-	for _, op := range d.ops {
+	var solution decimal.Decimal
+	var curDecimal, curName, parenCount int
+
+	solution = d.decimals[curDecimal]
+
+	for i, op := range d.ops {
 		if isUnary(op) {
 			vars.WriteString(symbols[op])
 			vars.WriteString(leftParen)
-			vars.WriteString(d.names[curName])
-			vars.WriteString(rightParen)
+			if len(d.ops) > i+1 && isUnary(d.ops[i+1]) {
+				parenCount++
+			} else {
+				vars.WriteString(d.names[curName])
+				for j := 0; j < parenCount+1; j++ {
+					vars.WriteString(rightParen)
+				}
+			}
 
 			formula.WriteString(symbols[op])
 			formula.WriteString(leftParen)
-			formula.WriteString(d.decimals[curDecimal].String())
-			formula.WriteString(rightParen)
 
-			curDecimal++
-			curName++
+			if len(d.ops) == i+1 || !isUnary(d.ops[i+1]) {
+				formula.WriteString(d.decimals[curDecimal].String())
+
+				for j := 0; j < parenCount+1; j++ {
+					formula.WriteString(rightParen)
+				}
+
+				parenCount = 0
+				curDecimal++
+				curName++
+			}
+
+			switch op {
+			case abs:
+				solution = solution.Abs()
+			case neg:
+				solution = solution.Neg()
+			}
 		} else if isBinary(op) {
 			if vars.Len() == 0 {
 				vars.WriteString(d.names[curName])
@@ -252,10 +276,19 @@ func (d Decimal) Math() (string, string) {
 			formula.WriteString(symbols[op])
 			formula.WriteString(d.decimals[curDecimal].String())
 
+			switch op {
+			case add:
+				solution = solution.Add(d.decimals[curDecimal])
+			case sub:
+				solution = solution.Sub(d.decimals[curDecimal])
+			case mul:
+				solution = solution.Mul(d.decimals[curDecimal])
+			}
+
 			curDecimal++
 			curName++
 		} else {
-
+			// variadic ops go here
 		}
 	}
 
@@ -264,19 +297,18 @@ func (d Decimal) Math() (string, string) {
 		formula.WriteString(d.decimals[0].String())
 	}
 
-	// if there were no ops on the decimal
 	if len(d.decimals) != len(d.names) {
-		vars.WriteString(equal)
-		vars.WriteRune('?')
-
-		formula.WriteString(equal)
-		formula.WriteString(d.decimals[len(d.decimals)-1].String())
-	} else {
 		vars.WriteString(equal)
 		vars.WriteString(d.names[len(d.names)-1])
 
 		formula.WriteString(equal)
-		formula.WriteString(d.decimals[len(d.decimals)-1].String())
+		formula.WriteString(solution.String())
+	} else {
+		vars.WriteString(equal)
+		vars.WriteRune('?')
+
+		formula.WriteString(equal)
+		formula.WriteString(solution.String())
 	}
 
 	return vars.String(), formula.String()
@@ -526,11 +558,8 @@ func NewFromDecimalWithName(name string, d decimal.Decimal) Decimal {
 func (d Decimal) Abs() Decimal {
 	return Decimal{
 		ops:      append(d.ops, abs),
-		decimals: append(d.decimals, d.decimals[len(d.decimals)-1].Abs()),
+		decimals: append(d.decimals),
 		names:    d.names,
-		// decimal: d.decimal.Abs(),
-		// vars:    abs + leftParen + d.vars + rightParen,
-		// formula: abs + leftParen + d.formula + rightParen,
 	}
 }
 
@@ -538,57 +567,64 @@ func (d Decimal) Abs() Decimal {
 func (d Decimal) Add(d2 Decimal) Decimal {
 	return Decimal{
 		ops:      append(append(d.ops, d2.ops...), add),
-		decimals: append(append(d.decimals[:len(d.decimals)], d2.decimals[:len(d2.decimals)]...), d.decimals[len(d.decimals)-1].Add(d2.decimals[len(d2.decimals)-1])),
+		decimals: append(d.decimals, d2.decimals...),
 		names:    append(d.names, d2.names...),
 		parens:   append(d.parens, true),
 	}
 }
 
-// // Sub returns d - d2.
-// func (d Decimal) Sub(d2 Decimal) Decimal {
-// 	return Decimal{
-// 		decimal: d.decimal.Sub(d2.decimal),
-// 		vars:    d.vars + sub + d2.vars,
-// 		formula: d.formula + sub + d2.formula,
-// 		parens:  true,
-// 	}
-// }
+// Sub returns d - d2.
+func (d Decimal) Sub(d2 Decimal) Decimal {
+	return Decimal{
+		ops:      append(append(d.ops, d2.ops...), sub),
+		decimals: append(d.decimals, d2.decimals...),
+		names:    append(d.names, d2.names...),
+		parens:   append(d.parens, true),
+	}
+}
 
-// // Neg returns -d.
-// func (d Decimal) Neg() Decimal {
-// 	return Decimal{
-// 		decimal: d.decimal.Neg(),
-// 		vars:    neg + leftParen + d.vars + rightParen,
-// 		formula: neg + leftParen + d.formula + rightParen,
-// 	}
-// }
+// Neg returns -d.
+func (d Decimal) Neg() Decimal {
+	return Decimal{
+		ops:      append(d.ops, neg),
+		decimals: append(d.decimals),
+		names:    d.names,
+	}
+}
 
-// // Mul returns d * d2.
-// func (d Decimal) Mul(d2 Decimal) Decimal {
-// 	dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
-// 	var vars, formula string
+// Mul returns d * d2.
+func (d Decimal) Mul(d2 Decimal) Decimal {
+	return Decimal{
+		ops:      append(append(d.ops, d2.ops...), mul),
+		decimals: append(d.decimals, d2.decimals...),
+		names:    append(d.names, d2.names...),
+		parens:   append(d.parens, true),
+	}
 
-// 	if d.parens {
-// 		vars += leftParen + d.vars + rightParen + mul
-// 		formula += leftParen + d.formula + rightParen + mul
-// 	} else {
-// 		vars += d.vars + mul
-// 		formula += d.formula + mul
-// 	}
+	// dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
+	// var vars, formula string
 
-// 	if d2.parens {
-// 		vars += leftParen + d2.vars + rightParen
-// 		formula += leftParen + d2.formula + rightParen
-// 	} else {
-// 		vars += d2.vars
-// 		formula += d2.formula
-// 	}
+	// if d.parens {
+	// 	vars += leftParen + d.vars + rightParen + mul
+	// 	formula += leftParen + d.formula + rightParen + mul
+	// } else {
+	// 	vars += d.vars + mul
+	// 	formula += d.formula + mul
+	// }
 
-// 	dec.vars = vars
-// 	dec.formula = formula
+	// if d2.parens {
+	// 	vars += leftParen + d2.vars + rightParen
+	// 	formula += leftParen + d2.formula + rightParen
+	// } else {
+	// 	vars += d2.vars
+	// 	formula += d2.formula
+	// }
 
-// 	return dec
-// }
+	// dec.vars = vars
+	// dec.formula = formula
+
+	// return dec
+}
 
 // // Shift shifts the decimal in base 10.
 // // It shifts left when shift is positive and right if shift is negative.

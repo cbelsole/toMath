@@ -164,6 +164,11 @@ func TestAbs(t *testing.T) {
 	vars, formula := d.Math()
 	assert.Equal(t, "abs(var1) = ?", vars)
 	assert.Equal(t, "abs(-1) = 1", formula)
+
+	d2 := d.Abs()
+	vars, formula = d2.Math()
+	assert.Equal(t, "abs(abs(var1)) = ?", vars)
+	assert.Equal(t, "abs(abs(-1)) = 1", formula)
 }
 
 func TestAdd(t *testing.T) {
@@ -178,29 +183,40 @@ func TestAdd(t *testing.T) {
 	vars, formula = d3.Math()
 	assert.Equal(t, "var1 + var2 + var3 + var4 = ?", vars)
 	assert.Equal(t, "-1 + 0 + -1 + 0 = -2", formula)
-
 }
 
-// func TestSub(t *testing.T) {
-// 	d := NewWithName("var1", -1, 0).Sub(NewWithName("var2", 0, 0))
-// 	vars, formula := d.Math()
-// 	assert.Equal(t, "var1 - var2 = ?", vars)
-// 	assert.Equal(t, "-1 - 0 = -1", formula)
-// }
+func TestSub(t *testing.T) {
+	d := NewWithName("var1", -1, 0).Sub(NewWithName("var2", 0, 0))
+	vars, formula := d.Math()
+	assert.Equal(t, "var1 - var2 = ?", vars)
+	assert.Equal(t, "-1 - 0 = -1", formula)
 
-// func TestNeg(t *testing.T) {
-// 	d := NewWithName("var1", 1, 0).Neg()
-// 	vars, formula := d.Math()
-// 	assert.Equal(t, "neg(var1) = ?", vars)
-// 	assert.Equal(t, "neg(1) = -1", formula)
-// }
+	d2 := NewWithName("var3", -1, 0).Sub(NewWithName("var4", 0, 0))
+	d3 := d.Sub(d2)
 
-// func TestMul(t *testing.T) {
-// 	d := NewWithName("var1", 1, 0).Mul(NewWithName("var2", 2, 0))
-// 	vars, formula := d.Math()
-// 	assert.Equal(t, "var1 * var2 = ?", vars)
-// 	assert.Equal(t, "1 * 2 = 2", formula)
-// }
+	vars, formula = d3.Math()
+	assert.Equal(t, "var1 - var2 - var3 - var4 = ?", vars)
+	assert.Equal(t, "-1 - 0 - -1 - 0 = 0", formula)
+}
+
+func TestNeg(t *testing.T) {
+	d := NewWithName("var1", 1, 0).Neg()
+	vars, formula := d.Math()
+	assert.Equal(t, "neg(var1) = ?", vars)
+	assert.Equal(t, "neg(1) = -1", formula)
+
+	d2 := d.Neg()
+	vars, formula = d2.Math()
+	assert.Equal(t, "neg(neg(var1)) = ?", vars)
+	assert.Equal(t, "neg(neg(1)) = 1", formula)
+}
+
+func TestMul(t *testing.T) {
+	d := NewWithName("var1", 1, 0).Mul(NewWithName("var2", 2, 0))
+	vars, formula := d.Math()
+	assert.Equal(t, "var1 * var2 = ?", vars)
+	assert.Equal(t, "1 * 2 = 2", formula)
+}
 
 // func TestShift(t *testing.T) {
 // 	d := NewWithName("var1", 1, 0).Shift(1)
