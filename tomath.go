@@ -25,7 +25,6 @@ package tomath
 
 import (
 	"math/big"
-	"strconv"
 	"strings"
 
 	"github.com/shopspring/decimal"
@@ -92,41 +91,41 @@ var symbols = map[byte]string{
 	avg:       "avg",
 }
 
-const (
+var (
 	// unary operators with precision
-	round byte = iota
-	roundBank
-	roundCash
-	shift
-	truncate
+	round     byte = 0
+	roundBank byte = 1
+	roundCash byte = 2
+	shift     byte = 3
+	truncate  byte = 4
 
 	// unary operations
-	abs
-	atan
-	ceil
-	cos
-	floor
-	neg
-	sin
-	tan
+	abs   byte = 5
+	atan  byte = 6
+	ceil  byte = 7
+	cos   byte = 8
+	floor byte = 9
+	neg   byte = 10
+	sin   byte = 11
+	tan   byte = 12
 
 	// binary operators with precision
-	divRound
-	quoRem
+	divRound byte = 13
+	quoRem   byte = 14
 
 	//  binary operations
-	add
-	div
-	mod
-	mul
-	pow
-	sub
+	add byte = 15
+	div byte = 16
+	mod byte = 17
+	mul byte = 18
+	pow byte = 19
+	sub byte = 20
 
 	// variatic operators
-	avg
-	max
-	min
-	sum
+	avg byte = 21
+	max byte = 22
+	min byte = 23
+	sum byte = 24
 )
 
 func isUnary(b byte) bool {
@@ -138,11 +137,11 @@ func isUnaryWithPrecision(b byte) bool {
 }
 
 func isBinary(b byte) bool {
-	return b < avg
+	return b < avg && b > tan
 }
 
 func isBinaryWithPrecision(b byte) bool {
-	return b < add
+	return b < add && b > tan
 }
 
 func isVariatic(b byte) bool {
@@ -169,17 +168,27 @@ type (
 
 	// Potentially store strings in string table to cut out duplicates
 	// parens can be bit shiftend if you know how many uniary operators have gone by
+	// Decimal struct {
+	// 	ops        []byte            // the operation decides what of the others is to be used
+	// 	parens     []bool            // not needed for unary operations
+	// 	names      []string          // not needed for unary operations
+	// 	decimals   []decimal.Decimal // not needed for unary operations
+	// 	valCounts  []uint8           // only needed for operations that can take many operands
+	// 	precisions []int32
+	// }
+
+	// TODO: rename Decimal
 	Decimal struct {
-		ops        []byte            // the operation decides what of the others is to be used
-		parens     []bool            // not needed for unary operations
-		names      []string          // not needed for unary operations
-		decimals   []decimal.Decimal // not needed for unary operations
-		valCounts  []uint8           // only needed for operations that can take many operands
-		precisions []int32
+		left      *Decimal
+		op        *byte
+		right     *Decimal
+		precision *int32
+		name      *string
+		value     *decimal.Decimal
 	}
 )
 
-var Zero = Decimal{decimals: []decimal.Decimal{decimal.Zero}, names: []string{"zero"}}
+// var Zero = Decimal{decimals: []decimal.Decimal{decimal.Zero}, names: []string{"zero"}}
 
 // SetName sets the name of the Decimal
 // func (d Decimal) SetName(name string) Decimal {
@@ -220,144 +229,124 @@ var Zero = Decimal{decimals: []decimal.Decimal{decimal.Zero}, names: []string{"z
 // first uses the decimal names. The second uses the decimal values. Both are
 // follwed by an equals sign with the current name and value respectively.
 func (d Decimal) Math() (string, string) {
-	if len(d.names) == 0 {
-		d.names = []string{"?"}
-	}
-
-	if len(d.decimals) == 0 {
-		d.decimals = []decimal.Decimal{decimal.Zero}
-	}
-
-	if len(d.ops) == 0 {
-		val := d.decimals[0].String()
-		return d.names[0] + equal + d.names[0], val + equal + val
-	}
-
 	var vars, formula strings.Builder
-	var solution decimal.Decimal
-	var curDecimal, curName, parenCount, curPrecision int
 
-	solution = d.decimals[curDecimal]
-
-	for i, op := range d.ops {
-		if isUnary(op) {
-			vars.WriteString(symbols[op])
-
-			if isUnaryWithPrecision(op) {
-				vars.WriteString(leftParen)
-				vars.WriteString(strconv.FormatInt(int64(d.precisions[curPrecision]), 10))
-				vars.WriteString(rightParen)
-			}
-
-			vars.WriteString(leftParen)
-			if len(d.ops) > i+1 && isUnary(d.ops[i+1]) {
-				parenCount++
-			} else {
-				vars.WriteString(d.names[curName])
-				for j := 0; j < parenCount+1; j++ {
-					vars.WriteString(rightParen)
-				}
-			}
-
-			formula.WriteString(symbols[op])
-
-			if isUnaryWithPrecision(op) {
-				formula.WriteString(leftParen)
-				formula.WriteString(strconv.FormatInt(int64(d.precisions[curPrecision]), 10))
-				formula.WriteString(rightParen)
-			}
-
-			formula.WriteString(leftParen)
-
-			if len(d.ops) == i+1 || !isUnary(d.ops[i+1]) {
-				formula.WriteString(d.decimals[curDecimal].String())
-
-				for j := 0; j < parenCount+1; j++ {
-					formula.WriteString(rightParen)
-				}
-
-				parenCount = 0
-				curDecimal++
-				curName++
-			}
-
-			switch op {
-			case abs:
-				solution = solution.Abs()
-			case neg:
-				solution = solution.Neg()
-			case shift:
-				solution = solution.Shift(d.precisions[curPrecision])
-			}
-
-			if isUnaryWithPrecision(op) {
-				curPrecision++
-			}
-		} else if isBinary(op) {
-			if vars.Len() == 0 {
-				vars.WriteString(d.names[curName])
-				formula.WriteString(d.decimals[curDecimal].String())
-				curDecimal++
-				curName++
-			}
-
-			vars.WriteString(symbols[op])
-			vars.WriteString(d.names[curName])
-
-			formula.WriteString(symbols[op])
-			formula.WriteString(d.decimals[curDecimal].String())
-
-			switch op {
-			case add:
-				solution = solution.Add(d.decimals[curDecimal])
-			case sub:
-				solution = solution.Sub(d.decimals[curDecimal])
-			case mul:
-				solution = solution.Mul(d.decimals[curDecimal])
-			case div:
-				solution = solution.Div(d.decimals[curDecimal])
-			}
-
-			curDecimal++
-			curName++
+	// handle single value without ops first
+	if d.op == nil {
+		if d.name == nil {
+			vars.WriteRune('?')
 		} else {
-			// variadic ops go here
+			vars.WriteString(*d.name)
+		}
+
+		value := d.value.String()
+		formula.WriteString(value)
+
+		vars.WriteString(equal)
+
+		if d.name == nil {
+			vars.WriteRune('?')
+		} else {
+			vars.WriteString(*d.name)
+		}
+
+		formula.WriteString(equal)
+		formula.WriteString(value)
+
+		return vars.String(), formula.String()
+	}
+
+	curDecimal := &d
+	root := curDecimal
+	var parents []*Decimal
+	visited := make(map[*Decimal]bool)
+
+	for curDecimal != nil {
+		if curDecimal.op == nil {
+			writeValue(&vars, &formula, curDecimal)
+			visited[curDecimal] = true
+
+			curDecimal = parents[len(parents)-1]
+			parents = parents[:len(parents)-1]
+			continue
+		} else if !visited[curDecimal] && isUnary(*curDecimal.op) {
+			write(&vars, &formula, symbols[*curDecimal.op])
+			write(&vars, &formula, leftParen)
+
+			visited[curDecimal] = true
+		}
+
+		if curDecimal.left != nil && !visited[curDecimal.left] {
+			parents = append(parents, curDecimal)
+			curDecimal = curDecimal.left
+			continue
+		}
+
+		if isUnary(*curDecimal.op) {
+			write(&vars, &formula, rightParen)
+		} else if !visited[curDecimal] && isBinary(*curDecimal.op) {
+			write(&vars, &formula, symbols[*curDecimal.op])
+			visited[curDecimal] = true
+		}
+
+		if curDecimal.right != nil && !visited[curDecimal.right] {
+			parents = append(parents, curDecimal)
+			curDecimal = curDecimal.right
+			continue
+		}
+
+		switch *curDecimal.op {
+		case abs:
+			d := curDecimal.left.value.Abs()
+			curDecimal.value = &d
+		case add:
+			d := curDecimal.left.value.Add(*curDecimal.right.value)
+			curDecimal.value = &d
+		}
+
+		if len(parents) > 0 {
+			curDecimal = parents[len(parents)-1]
+			parents = parents[:len(parents)-1]
+		} else {
+			curDecimal = nil
 		}
 	}
 
-	if vars.Len() == 0 {
-		vars.WriteString(d.names[0])
-		formula.WriteString(d.decimals[0].String())
-	}
+	vars.WriteString(equal)
+	// TODO: implement final name
+	vars.WriteRune('?')
 
-	if len(d.decimals) != len(d.names) {
-		vars.WriteString(equal)
-		vars.WriteString(d.names[len(d.names)-1])
-
-		formula.WriteString(equal)
-		formula.WriteString(solution.String())
-	} else {
-		vars.WriteString(equal)
-		vars.WriteRune('?')
-
-		formula.WriteString(equal)
-		formula.WriteString(solution.String())
-	}
+	formula.WriteString(equal)
+	formula.WriteString(root.value.String())
 
 	return vars.String(), formula.String()
 }
 
+func writeValue(vars, formula *strings.Builder, d *Decimal) {
+	if d.name != nil && *d.name != "" {
+		vars.WriteString(*d.name)
+	} else {
+		vars.WriteRune('?')
+	}
+
+	formula.WriteString(d.value.String())
+}
+
+func write(vars, formula *strings.Builder, s string) {
+	vars.WriteString(s)
+	formula.WriteString(s)
+}
+
 // New returns a new fixed-point decimal, value * 10 ^ exp.
 func New(value int64, exp int32) Decimal {
-	return Decimal{decimals: []decimal.Decimal{decimal.New(value, exp)}}
+	d := decimal.New(value, exp)
+	return Decimal{value: &d}
 }
 
 // NewWithName returns a new fixed-point decimal, value * 10 ^ exp with a given name.
 func NewWithName(name string, value int64, exp int32) Decimal {
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{decimal.New(value, exp)},
-	}
+	d := decimal.New(value, exp)
+	return Decimal{name: &name, value: &d}
 }
 
 // NewFromInt converts a int64 to Decimal.
@@ -367,7 +356,8 @@ func NewWithName(name string, value int64, exp int32) Decimal {
 //     NewFromInt(123).String() // output: "123"
 //     NewFromInt(-10).String() // output: "-10"
 func NewFromInt(value int64) Decimal {
-	return Decimal{decimals: []decimal.Decimal{decimal.NewFromInt(value)}}
+	d := decimal.NewFromInt(value)
+	return Decimal{value: &d}
 }
 
 // NewFromIntWithName converts a int64 to Decimal with a given name.
@@ -377,10 +367,8 @@ func NewFromInt(value int64) Decimal {
 //     NewFromIntWithName("var1", 123).String() // output: "123"
 //     NewFromIntWithName("var1", -10).String() // output: "-10"
 func NewFromIntWithName(name string, value int64) Decimal {
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{decimal.NewFromInt(value)},
-	}
+	d := decimal.NewFromInt(value)
+	return Decimal{name: &name, value: &d}
 }
 
 // NewFromInt32 converts a int32 to Decimal.
@@ -390,7 +378,8 @@ func NewFromIntWithName(name string, value int64) Decimal {
 //     NewFromInt(123).String() // output: "123"
 //     NewFromInt(-10).String() // output: "-10"
 func NewFromInt32(value int32) Decimal {
-	return Decimal{decimals: []decimal.Decimal{decimal.NewFromInt32(value)}}
+	d := decimal.NewFromInt32(value)
+	return Decimal{value: &d}
 }
 
 // NewFromInt32WithName converts a int32 to Decimal with a given name.
@@ -400,24 +389,21 @@ func NewFromInt32(value int32) Decimal {
 //     NewFromInt32WithName("var1", 123).String() // output: "123"
 //     NewFromInt32WithName("var1", -10).String() // output: "-10"
 func NewFromInt32WithName(name string, value int32) Decimal {
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{decimal.NewFromInt32(value)},
-	}
+	d := decimal.NewFromInt32(value)
+	return Decimal{name: &name, value: &d}
 }
 
 // NewFromBigInt returns a new Decimal from a big.Int, value * 10 ^ exp
 func NewFromBigInt(value *big.Int, exp int32) Decimal {
-	return Decimal{decimals: []decimal.Decimal{decimal.NewFromBigInt(value, exp)}}
+	d := decimal.NewFromBigInt(value, exp)
+	return Decimal{value: &d}
 }
 
 // NewFromBigIntWithName returns a new Decimal from a big.Int, value * 10 ^ exp
 // with a given name
 func NewFromBigIntWithName(name string, value *big.Int, exp int32) Decimal {
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{decimal.NewFromBigInt(value, exp)},
-	}
+	d := decimal.NewFromBigInt(value, exp)
+	return Decimal{name: &name, value: &d}
 }
 
 // NewFromString returns a new Decimal from a string representation.
@@ -435,7 +421,7 @@ func NewFromString(value string) (Decimal, error) {
 		return Decimal{}, err
 	}
 
-	return Decimal{decimals: []decimal.Decimal{d}}, nil
+	return Decimal{value: &d}, nil
 }
 
 // NewFromStringWithName returns a new Decimal from a string representation with
@@ -453,10 +439,7 @@ func NewFromStringWithName(name string, value string) (Decimal, error) {
 		return Decimal{}, err
 	}
 
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{d},
-	}, nil
+	return Decimal{name: &name, value: &d}, nil
 }
 
 // RequireFromString returns a new Decimal from a string representation
@@ -468,7 +451,8 @@ func NewFromStringWithName(name string, value string) (Decimal, error) {
 //     d2 := RequireFromString(".0001")
 //
 func RequireFromString(value string) Decimal {
-	return Decimal{decimals: []decimal.Decimal{decimal.RequireFromString(value)}}
+	d := decimal.RequireFromString(value)
+	return Decimal{value: &d}
 }
 
 // RequireFromStringWithName returns a new Decimal from a string representation
@@ -480,10 +464,8 @@ func RequireFromString(value string) Decimal {
 //     d2 := RequireFromStringWithName("var1", ".0001")
 //
 func RequireFromStringWithName(name string, value string) Decimal {
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{decimal.RequireFromString(value)},
-	}
+	d := decimal.RequireFromString(value)
+	return Decimal{name: &name, value: &d}
 }
 
 // NewFromFloat converts a float64 to Decimal.
@@ -497,7 +479,8 @@ func RequireFromStringWithName(name string, value string) Decimal {
 //
 // NOTE: this will panic on NaN, +/-inf
 func NewFromFloat(value float64) Decimal {
-	return Decimal{decimals: []decimal.Decimal{decimal.NewFromFloat(value)}}
+	d := decimal.NewFromFloat(value)
+	return Decimal{value: &d}
 }
 
 // NewFromFloatWithName converts a float64 to Decimal with a given name.
@@ -511,10 +494,8 @@ func NewFromFloat(value float64) Decimal {
 //
 // NOTE: this will panic on NaN, +/-inf
 func NewFromFloatWithName(name string, value float64) Decimal {
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{decimal.NewFromFloat(value)},
-	}
+	d := decimal.NewFromFloat(value)
+	return Decimal{name: &name, value: &d}
 }
 
 // NewFromFloat32 converts a float32 to Decimal.
@@ -528,7 +509,8 @@ func NewFromFloatWithName(name string, value float64) Decimal {
 //
 // NOTE: this will panic on NaN, +/-inf
 func NewFromFloat32(value float32) Decimal {
-	return Decimal{decimals: []decimal.Decimal{decimal.NewFromFloat32(value)}}
+	d := decimal.NewFromFloat32(value)
+	return Decimal{value: &d}
 }
 
 // NewFromFloat32WithName converts a float32 to Decimal with a given name.
@@ -542,10 +524,8 @@ func NewFromFloat32(value float32) Decimal {
 //
 // NOTE: this will panic on NaN, +/-inf
 func NewFromFloat32WithName(name string, value float32) Decimal {
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{decimal.NewFromFloat32(value)},
-	}
+	d := decimal.NewFromFloat32(value)
+	return Decimal{name: &name, value: &d}
 }
 
 // NewFromFloatWithExponent converts a float64 to Decimal, with an arbitrary
@@ -556,7 +536,8 @@ func NewFromFloat32WithName(name string, value float32) Decimal {
 //     NewFromFloatWithExponent(123.456, -2).String() // output: "123.46"
 //
 func NewFromFloatWithExponent(value float64, exp int32) Decimal {
-	return Decimal{decimals: []decimal.Decimal{decimal.NewFromFloatWithExponent(value, exp)}}
+	d := decimal.NewFromFloatWithExponent(value, exp)
+	return Decimal{value: &d}
 }
 
 // NewFromFloatWithExponentWithName converts a float64 to Decimal with a given name, with an arbitrary
@@ -567,152 +548,142 @@ func NewFromFloatWithExponent(value float64, exp int32) Decimal {
 //     NewFromFloatWithExponentWithName("var1", 123.456, -2).String() // output: "123.46"
 //
 func NewFromFloatWithExponentWithName(name string, value float64, exp int32) Decimal {
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{decimal.NewFromFloatWithExponent(value, exp)},
-	}
+	d := decimal.NewFromFloatWithExponent(value, exp)
+	return Decimal{name: &name, value: &d}
 }
 
 // NewFromDecimal returns a new Decimal from github.com/shopspring/decimal#Decimal.
 func NewFromDecimal(d decimal.Decimal) Decimal {
-	return Decimal{decimals: []decimal.Decimal{d}}
+	return Decimal{value: &d}
 }
 
 // NewFromDecimalWithName returns a new Decimal from github.com/shopspring/decimal#Decimal
 // with a given name.
 func NewFromDecimalWithName(name string, d decimal.Decimal) Decimal {
-	return Decimal{
-		names:    []string{name},
-		decimals: []decimal.Decimal{d},
-	}
+	return Decimal{name: &name, value: &d}
 }
 
 // Abs returns the absolute value of the decimal.
 func (d Decimal) Abs() Decimal {
 	return Decimal{
-		ops:        append(d.ops, abs),
-		decimals:   d.decimals,
-		names:      d.names,
-		parens:     d.parens,
-		precisions: d.precisions,
+		op:   &abs,
+		left: &d,
 	}
 }
 
 // Add returns d + d2.
 func (d Decimal) Add(d2 Decimal) Decimal {
 	return Decimal{
-		ops:        append(append(d.ops, d2.ops...), add),
-		decimals:   append(d.decimals, d2.decimals...),
-		names:      append(append(d.names, d2.names...)),
-		parens:     append(d.parens, true),
-		precisions: d.precisions,
+		op:    &add,
+		left:  &d,
+		right: &d2,
 	}
 }
 
 // Sub returns d - d2.
-func (d Decimal) Sub(d2 Decimal) Decimal {
-	return Decimal{
-		ops:        append(append(d.ops, d2.ops...), sub),
-		decimals:   append(d.decimals, d2.decimals...),
-		names:      append(append(d.names, d2.names...)),
-		parens:     append(d.parens, true),
-		precisions: d.precisions,
-	}
-}
+// func (d Decimal) Sub(d2 Decimal) Decimal {
+// 	return Decimal{
+// 		ops:        append(append(d.ops, d2.ops...), sub),
+// 		decimals:   append(d.decimals, d2.decimals...),
+// 		names:      append(append(d.names, d2.names...)),
+// 		parens:     append(d.parens, true),
+// 		precisions: d.precisions,
+// 	}
+// }
 
 // Neg returns -d.
-func (d Decimal) Neg() Decimal {
-	return Decimal{
-		ops:        append(d.ops, neg),
-		decimals:   d.decimals,
-		names:      d.names,
-		parens:     d.parens,
-		precisions: d.precisions,
-	}
-}
+// func (d Decimal) Neg() Decimal {
+// 	return Decimal{
+// 		ops:        append(d.ops, neg),
+// 		decimals:   d.decimals,
+// 		names:      d.names,
+// 		parens:     d.parens,
+// 		precisions: d.precisions,
+// 	}
+// }
 
 // Mul returns d * d2.
-func (d Decimal) Mul(d2 Decimal) Decimal {
-	return Decimal{
-		ops:        append(append(d.ops, d2.ops...), mul),
-		decimals:   append(d.decimals, d2.decimals...),
-		names:      append(append(d.names, d2.names...)),
-		parens:     append(d.parens, true),
-		precisions: d.precisions,
-	}
+// func (d Decimal) Mul(d2 Decimal) Decimal {
+// 	return Decimal{
+// 		ops:        append(append(d.ops, d2.ops...), mul),
+// 		decimals:   append(d.decimals, d2.decimals...),
+// 		names:      append(append(d.names, d2.names...)),
+// 		parens:     append(d.parens, true),
+// 		precisions: d.precisions,
+// 	}
 
-	// dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
-	// var vars, formula string
+// 	// dec := Decimal{decimal: d.decimal.Mul(d2.decimal)}
+// 	// var vars, formula string
 
-	// if d.parens {
-	// 	vars += leftParen + d.vars + rightParen + mul
-	// 	formula += leftParen + d.formula + rightParen + mul
-	// } else {
-	// 	vars += d.vars + mul
-	// 	formula += d.formula + mul
-	// }
+// 	// if d.parens {
+// 	// 	vars += leftParen + d.vars + rightParen + mul
+// 	// 	formula += leftParen + d.formula + rightParen + mul
+// 	// } else {
+// 	// 	vars += d.vars + mul
+// 	// 	formula += d.formula + mul
+// 	// }
 
-	// if d2.parens {
-	// 	vars += leftParen + d2.vars + rightParen
-	// 	formula += leftParen + d2.formula + rightParen
-	// } else {
-	// 	vars += d2.vars
-	// 	formula += d2.formula
-	// }
+// 	// if d2.parens {
+// 	// 	vars += leftParen + d2.vars + rightParen
+// 	// 	formula += leftParen + d2.formula + rightParen
+// 	// } else {
+// 	// 	vars += d2.vars
+// 	// 	formula += d2.formula
+// 	// }
 
-	// dec.vars = vars
-	// dec.formula = formula
+// 	// dec.vars = vars
+// 	// dec.formula = formula
 
-	// return dec
-}
+// 	// return dec
+// }
 
 // Shift shifts the decimal in base 10.
 // It shifts left when shift is positive and right if shift is negative.
 // In simpler terms, the given value for shift is added to the exponent
 // of the decimal.
-func (d Decimal) Shift(s int32) Decimal {
-	return Decimal{
-		ops:        append(d.ops, shift),
-		decimals:   d.decimals,
-		names:      d.names,
-		precisions: append(d.precisions, s),
-	}
-}
+// func (d Decimal) Shift(s int32) Decimal {
+// 	return Decimal{
+// 		ops:        append(d.ops, shift),
+// 		decimals:   d.decimals,
+// 		names:      d.names,
+// 		precisions: append(d.precisions, s),
+// 	}
+// }
 
 // Div returns d / d2. If it doesn't divide exactly, the result will have
 // DivisionPrecision digits after the decimal point.
-func (d Decimal) Div(d2 Decimal) Decimal {
-	return Decimal{
-		ops:        append(append(d.ops, d2.ops...), div),
-		decimals:   append(d.decimals, d2.decimals...),
-		names:      append(append(d.names, d2.names...)),
-		parens:     append(d.parens, true),
-		precisions: d.precisions,
-	}
-	// dec := Decimal{decimal: d.decimal.Div(d2.decimal)}
+// func (d Decimal) Div(d2 Decimal) Decimal {
+// 	return Decimal{
+// 		ops:        append(append(d.ops, d2.ops...), div),
+// 		decimals:   append(d.decimals, d2.decimals...),
+// 		names:      append(append(d.names, d2.names...)),
+// 		parens:     append(d.parens, true),
+// 		precisions: d.precisions,
+// 	}
+// 	// dec := Decimal{decimal: d.decimal.Div(d2.decimal)}
 
-	// var vars, formula string
-	// if d.parens {
-	// 	vars += leftParen + d.vars + rightParen + div
-	// 	formula += leftParen + d.formula + rightParen + div
-	// } else {
-	// 	vars += d.vars + div
-	// 	formula += d.formula + div
-	// }
+// 	// var vars, formula string
+// 	// if d.parens {
+// 	// 	vars += leftParen + d.vars + rightParen + div
+// 	// 	formula += leftParen + d.formula + rightParen + div
+// 	// } else {
+// 	// 	vars += d.vars + div
+// 	// 	formula += d.formula + div
+// 	// }
 
-	// if d2.parens {
-	// 	vars += leftParen + d2.vars + rightParen
-	// 	formula += leftParen + d2.formula + rightParen
-	// } else {
-	// 	vars += d2.vars
-	// 	formula += d2.formula
-	// }
+// 	// if d2.parens {
+// 	// 	vars += leftParen + d2.vars + rightParen
+// 	// 	formula += leftParen + d2.formula + rightParen
+// 	// } else {
+// 	// 	vars += d2.vars
+// 	// 	formula += d2.formula
+// 	// }
 
-	// dec.vars = vars
-	// dec.formula = formula
+// 	// dec.vars = vars
+// 	// dec.formula = formula
 
-	// return dec
-}
+// 	// return dec
+// }
 
 // QuoRem does divsion with remainder
 // d.QuoRem(d2,precision) returns quotient q and remainder r such that
@@ -976,13 +947,13 @@ func (d Decimal) Div(d2 Decimal) Decimal {
 //
 //     -12.345
 //
-func (d Decimal) String() string {
-	if len(d.decimals) == 0 {
-		return "0"
-	}
+// func (d Decimal) String() string {
+// 	if len(d.decimals) == 0 {
+// 		return "0"
+// 	}
 
-	return d.decimals[len(d.decimals)-1].String()
-}
+// 	return d.decimals[len(d.decimals)-1].String()
+// }
 
 // // StringFixed returns a rounded fixed-point string with places digits after
 // // the decimal point.

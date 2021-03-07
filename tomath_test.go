@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestZero(t *testing.T) {
-	d := Decimal{}
-	assert.Equal(t, "0", d.String())
-	formula, vars := d.Math()
-	assert.Equal(t, "? = ?", formula)
-	assert.Equal(t, "0 = 0", vars)
-}
+// func TestZero(t *testing.T) {
+// 	d := Decimal{}
+// 	assert.Equal(t, "0", d.String())
+// 	formula, vars := d.Math()
+// 	assert.Equal(t, "? = ?", formula)
+// 	assert.Equal(t, "0 = 0", vars)
+// }
 
 func TestNew(t *testing.T) {
 	d := New(0, 0)
@@ -171,6 +171,33 @@ func TestAbs(t *testing.T) {
 	assert.Equal(t, "abs(abs(-1)) = 1", formula)
 }
 
+// func TestUnaryAndBinary(t *testing.T) {
+// 	d := NewWithName("var1", -1, 0).Abs()
+// 	vars, formula := d.Math()
+// 	assert.Equal(t, "abs(var1) = ?", vars)
+// 	assert.Equal(t, "abs(-1) = 1", formula)
+
+// 	d = d.Add(NewWithName("var2", 1, 0))
+// 	vars, formula = d.Math()
+// 	assert.Equal(t, "abs(var1) + var2 = ?", vars)
+// 	assert.Equal(t, "abs(-1) + 1 = 2", formula)
+
+// 	d = d.Abs()
+// 	vars, formula = d.Math()
+// 	assert.Equal(t, "abs(abs(var1) + var2) = ?", vars)
+// 	assert.Equal(t, "abs(abs(-1) + 1) = 2", formula)
+
+// 	d = d.Add(NewWithName("var3", 1, 0))
+// 	vars, formula = d.Math()
+// 	assert.Equal(t, "abs(abs(var1) + var2) + var3 = ?", vars)
+// 	assert.Equal(t, "abs(abs(-1) + 1) + 1 = 3", formula)
+
+// 	d = NewWithName("var5", 1, 0).Add(d)
+// 	vars, formula = d.Math()
+// 	assert.Equal(t, "var5 + abs(abs(var1) + var2) + var3 = ?", vars)
+// 	assert.Equal(t, "1 * (abs(abs(-1) + 1) + 1) = 4", formula)
+// }
+
 func TestAdd(t *testing.T) {
 	d := NewWithName("var1", -1, 0).Add(NewWithName("var2", 0, 0))
 	vars, formula := d.Math()
@@ -185,57 +212,57 @@ func TestAdd(t *testing.T) {
 	assert.Equal(t, "-1 + 0 + -1 + 0 = -2", formula)
 }
 
-func TestSub(t *testing.T) {
-	d := NewWithName("var1", -1, 0).Sub(NewWithName("var2", 0, 0))
-	vars, formula := d.Math()
-	assert.Equal(t, "var1 - var2 = ?", vars)
-	assert.Equal(t, "-1 - 0 = -1", formula)
+// func TestSub(t *testing.T) {
+// 	d := NewWithName("var1", -1, 0).Sub(NewWithName("var2", 0, 0))
+// 	vars, formula := d.Math()
+// 	assert.Equal(t, "var1 - var2 = ?", vars)
+// 	assert.Equal(t, "-1 - 0 = -1", formula)
 
-	d2 := NewWithName("var3", -1, 0).Sub(NewWithName("var4", 0, 0))
-	d3 := d.Sub(d2)
+// 	d2 := NewWithName("var3", -1, 0).Sub(NewWithName("var4", 0, 0))
+// 	d3 := d.Sub(d2)
 
-	vars, formula = d3.Math()
-	assert.Equal(t, "var1 - var2 - var3 - var4 = ?", vars)
-	assert.Equal(t, "-1 - 0 - -1 - 0 = 0", formula)
-}
+// 	vars, formula = d3.Math()
+// 	assert.Equal(t, "var1 - var2 - var3 - var4 = ?", vars)
+// 	assert.Equal(t, "-1 - 0 - -1 - 0 = 0", formula)
+// }
 
-func TestNeg(t *testing.T) {
-	d := NewWithName("var1", 1, 0).Neg()
-	vars, formula := d.Math()
-	assert.Equal(t, "neg(var1) = ?", vars)
-	assert.Equal(t, "neg(1) = -1", formula)
+// func TestNeg(t *testing.T) {
+// 	d := NewWithName("var1", 1, 0).Neg()
+// 	vars, formula := d.Math()
+// 	assert.Equal(t, "neg(var1) = ?", vars)
+// 	assert.Equal(t, "neg(1) = -1", formula)
 
-	d2 := d.Neg()
-	vars, formula = d2.Math()
-	assert.Equal(t, "neg(neg(var1)) = ?", vars)
-	assert.Equal(t, "neg(neg(1)) = 1", formula)
-}
+// 	d2 := d.Neg()
+// 	vars, formula = d2.Math()
+// 	assert.Equal(t, "neg(neg(var1)) = ?", vars)
+// 	assert.Equal(t, "neg(neg(1)) = 1", formula)
+// }
 
-func TestMul(t *testing.T) {
-	d := NewWithName("var1", 1, 0).Mul(NewWithName("var2", 2, 0))
-	vars, formula := d.Math()
-	assert.Equal(t, "var1 * var2 = ?", vars)
-	assert.Equal(t, "1 * 2 = 2", formula)
-}
+// func TestMul(t *testing.T) {
+// 	d := NewWithName("var1", 1, 0).Mul(NewWithName("var2", 2, 0))
+// 	vars, formula := d.Math()
+// 	assert.Equal(t, "var1 * var2 = ?", vars)
+// 	assert.Equal(t, "1 * 2 = 2", formula)
+// }
 
-func TestShift(t *testing.T) {
-	d := NewWithName("var1", 1, 0).Shift(1)
-	vars, formula := d.Math()
-	assert.Equal(t, "shift(1)(var1) = ?", vars)
-	assert.Equal(t, "shift(1)(1) = 10", formula)
+// func TestShift(t *testing.T) {
+// 	d := NewWithName("var1", 1, 0).Shift(1)
+// 	vars, formula := d.Math()
+// 	assert.Equal(t, "shift(1)(var1) = ?", vars)
+// 	assert.Equal(t, "shift(1)(1) = 10", formula)
 
-	d2 := d.Shift(1)
-	vars, formula = d2.Math()
-	assert.Equal(t, "shift(1)(shift(1)(var1)) = ?", vars)
-	assert.Equal(t, "shift(1)(shift(1)(1)) = 100", formula)
-}
+// 	d2 := d.Shift(1)
+// 	vars, formula = d2.Math()
+// 	assert.Equal(t, "shift(1)(shift(1)(var1)) = ?", vars)
+// 	assert.Equal(t, "shift(1)(shift(1)(1)) = 100", formula)
+// }
 
-func TestDiv(t *testing.T) {
-	d := NewWithName("var1", 4, 0).Div(NewWithName("var2", 2, 0))
-	vars, formula := d.Math()
-	assert.Equal(t, "var1 / var2 = ?", vars)
-	assert.Equal(t, "4 / 2 = 2", formula)
-}
+// func TestDiv(t *testing.T) {
+// 	d := NewWithName("var1", 4, 0).Div(NewWithName("var2", 2, 0))
+// 	vars, formula := d.Math()
+// 	assert.Equal(t, "var1 / var2 = ?", vars)
+// 	assert.Equal(t, "4 / 2 = 2", formula)
+// }
 
 // func TestDivRound(t *testing.T) {
 // 	d := NewFromFloatWithName("var1", 4.333).DivRound(NewFromFloatWithName("var2", 2.7), 3)
@@ -560,15 +587,15 @@ func BenchmarkToMathUnary(b *testing.B) {
 	}
 }
 
-func BenchmarkToMathUnaryWithPrecision(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		d := NewFromFloatWithName("start", 100)
-		for j := 0; j < 100; j++ {
-			d = d.Shift(1)
-		}
-		d.Math()
-	}
-}
+// func BenchmarkToMathUnaryWithPrecision(b *testing.B) {
+// 	for i := 0; i < b.N; i++ {
+// 		d := NewFromFloatWithName("start", 100)
+// 		for j := 0; j < 100; j++ {
+// 			d = d.Shift(1)
+// 		}
+// 		d.Math()
+// 	}
+// }
 
 func BenchmarkDecimal(b *testing.B) {
 	for i := 0; i < b.N; i++ {
