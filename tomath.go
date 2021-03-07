@@ -257,13 +257,14 @@ func (d Decimal) Math() (string, string) {
 	}
 
 	curDecimal := &d
-	root := curDecimal
 	var parents []*Decimal
 	visited := make(map[*Decimal]bool)
+	values := make([]*decimal.Decimal, 0, 1) // we should have at least 1 value
 
 	for curDecimal != nil {
 		if curDecimal.op == nil {
 			writeValue(&vars, &formula, curDecimal)
+			values = append(values, curDecimal.value)
 			visited[curDecimal] = true
 
 			curDecimal = parents[len(parents)-1]
@@ -297,11 +298,21 @@ func (d Decimal) Math() (string, string) {
 
 		switch *curDecimal.op {
 		case abs:
-			d := curDecimal.left.value.Abs()
-			curDecimal.value = &d
+			val := values[len(values)-1]
+			values = values[:len(values)-1]
+
+			result := val.Abs()
+
+			values = append(values, &result)
 		case add:
-			d := curDecimal.left.value.Add(*curDecimal.right.value)
-			curDecimal.value = &d
+			val2 := values[len(values)-1]
+			val1 := values[len(values)-2]
+
+			values = values[:len(values)-2]
+
+			result := val1.Add(*val2)
+
+			values = append(values, &result)
 		}
 
 		if len(parents) > 0 {
@@ -317,7 +328,7 @@ func (d Decimal) Math() (string, string) {
 	vars.WriteRune('?')
 
 	formula.WriteString(equal)
-	formula.WriteString(root.value.String())
+	formula.WriteString(values[0].String())
 
 	return vars.String(), formula.String()
 }
